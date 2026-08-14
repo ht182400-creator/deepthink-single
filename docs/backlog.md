@@ -1,7 +1,7 @@
 # 需求池（Product Backlog）
 
 > 敏捷需求池。优先级 P0（本 Sprint 必须）/ P1（重要）/ P2（可选）。故事点 S/M/L。
-> 更新：2026-08-13 Sprint 2 完成项已勾选。
+> 更新：2026-08-14 Sprint 2/3/4 完成项已勾选；新增「代码评审整改」小节（US-054~US-068）。
 
 ## P0 - 核心（Sprint 1）✅ 已完成
 
@@ -50,13 +50,33 @@
 | ID | 项 | 说明 | 来源 |
 |---|---|---|---|
 | US-025 | 前端 fetch 超时/取消 | K线 npx 最长 60s，用 AbortController 防悬挂 | code-review |
-| US-026 | SQLite WAL 模式 | 批量并发写前启用 journal_mode=WAL | code-review |
+| US-026 | SQLite WAL 模式 | 批量并发写前启用 journal_mode=WAL | code-review | ✅ 2026-08-14（db.py 加 PRAGMA WAL + busy_timeout） |
 | US-027 | 东财 K线适配器 | HTTP 接口不稳暂未接入；实现后加回降级链 | code-review |
 | US-028 | 覆盖率门禁 | coverage core≥90% 进 CI | code-review |
 | US-029 | 搜索下拉键盘导航 | ↑↓ 选择 + Enter 确认 | ui-review |
 | US-030 | 加载/错误占位文案 | 三面板无数据时给提示 | ui-review |
 | US-031 | 移动端自适应 | 图表高度按视口 | ui-review |
 | US-032 | 自选删除按钮 | 下拉选中标的可移除 | ui-review |
+
+## P3 - 代码评审整改（2026-08-14 评审产出，详见 `code-review-2026-08-14.md` §7）
+
+| ID | 项 | 说明 | 状态 |
+|---|---|---|---|
+| US-054 | D1 MACD DEA 修复 | 指标算法抽到 `static/js/indicators.js` 并修复 DEA 对齐（原 `slice(0,N)` 全 null） | ✅ 2026-08-14 |
+| US-055 | D2 resize 崩溃修复 | 仅 resize 已 `init` 的图表实例（p1 + sub[] / p4 + klineSub[]） | ✅ 2026-08-14 |
+| US-056 | D3 zoom 监听泄漏修复 | `_onKlineDataZoom` 提为模块级稳定引用，`off`+`on` 正确移除旧监听 | ✅ 2026-08-14 |
+| US-057 | D4 删除重复 `_slice` | `quote_service.py` 删冗余定义 | ✅ 2026-08-14 |
+| US-058 | P1 低频数据 TTL 缓存 | 新增 `static_cache`(TTL 600s)，stats/财务/股东/两融/龙虎榜/预测/净利/5日资金走缓存 | ✅ 2026-08-14 |
+| US-059 | C1 TDX_ROOT 环境变量 | `os.environ.get("TDX_ROOT", 默认值)`，换机/部署免改代码 | ✅ 2026-08-14 |
+| US-060 | C2 指数退避重试 | `core/fallback._call_one` 实现真实重试（RETRY_MAX + RETRY_BACKOFF 生效） | ✅ 2026-08-14 |
+| US-061 | C5 `/api/many` 上限 | 新增 `MAX_CODES=50`，超限 400 防雪崩 | ✅ 2026-08-14 |
+| US-062 | M2 误导副图标注 | `renderTurnover`/`renderOuterBuy` tooltip 明确标注"估算"/"日级快照" | ✅ 2026-08-14 |
+| US-063 | M3 搜索返回结构统一 | `_cat_of(code)` 推导 `cat`，命中项不再缺字段（前端不再 `undefined`） | ✅ 2026-08-14 |
+| US-064 | 前端指标算法单测 | 新增 `tests/js/indicators.test.js`（node --test，5 用例全绿，守护 D1 回归） | ✅ 2026-08-14 |
+| US-065 | M1 副图渲染样板抽取 | 12 个副图渲染函数 ~90% 重复样板，抽数据驱动 `buildSubOption` | ✅ 2026-08-14（骨架+delta 助手，12 个副图函数全收敛） |
+| US-066 | C4 删除 deprecated data_provider | 仅自检引用，无业务依赖，可后续清理 | ✅ 2026-08-14（已删 + app.py 注释更新） |
+| US-067 | P4 前端 AbortController 超时 | 与 US-025 同源，K线 fetch 悬挂防护 | ✅ 2026-08-14（`_fetchAbortable` 自动取消+超时，quote/kline 已接入） |
+| US-068 | §5-2/3 测试深化 | jsdom 冒烟 + 后端 mock 化（CI 建设项） | ⏳ 暂缓 |
 
 | US-033 | 分笔明细 + 分价表 | 通达信红框右侧内容：需 Level2 逐笔数据（免费源不稳定），当前仅五档盘口 | P3 技术债 |
 | US-034 | K线信息卡增强 | 已实现：hover 显示 开盘/收盘/最低/最高/昨收/涨幅/振幅/成交额 | ✅ Sprint 2 |
