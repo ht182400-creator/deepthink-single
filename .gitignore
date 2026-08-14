@@ -1,0 +1,15 @@
+# 本地数据（股票列表 / K线缓存 / 自选）
+data/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# 日志
+*.log
+
+# 系统
+.DS_Store
+Thumbs.db
