@@ -1,7 +1,7 @@
 # 需求池（Product Backlog）
 
 > 敏捷需求池。优先级 P0（本 Sprint 必须）/ P1（重要）/ P2（可选）。故事点 S/M/L。
-> 更新：2026-08-14 Sprint 2/3/4 完成项已勾选；新增「代码评审整改」小节（US-054~US-068）。
+> 更新：2026-08-14 Sprint 2/3/4 完成项已勾选；新增「代码评审整改」小节（US-054~US-068）；**v0.0.4 已发布**（代码评审整改，见 §7 + 下方「版本发布记录」）。
 
 ## P0 - 核心（Sprint 1）✅ 已完成
 
@@ -107,3 +107,12 @@
 | US-051 | 公司信息 | 东财 f10 CompanySurvey | P3 | ✅ Sprint 2 |
 | US-052 | 分析师预测评级 | 东财 RPT_WEB_RESPREDICT | P3 | ✅ Sprint 2 |
 | US-053 | 分笔明细+分价表（Level2） | 需 Level2 逐笔数据 | P3 | backlog |
+
+## 版本发布记录
+
+| 版本 | 日期 | 说明 | 链接 |
+|---|---|---|---|
+| v0.0.1 | 2026-08 | 初始提交 | — |
+| v0.0.2 | 2026-08-13 | Sprint 3/4 功能（批量表格/资金流明细/5日主力/异动告警/CSV导出/右键副图配置/全A股搜索） | [release](https://github.com/ht182400-creator/deepthink-single/releases/tag/v0.0.2) |
+| v0.0.3 | 2026-08-13 | 文档全量更新 + 评审缺陷初修 | [release](https://github.com/ht182400-creator/deepthink-single/releases/tag/v0.0.3) |
+| v0.0.4 | 2026-08-14 | 代码评审整改：D1-D4/P1/C1-C5/M2/M3/M1/P4/C4（MACD 修复、resize/zoom 修复、低频缓存、重试、WAL、副图去重、请求超时防护、删废弃模块）+ 前端指标单测 | [release](https://github.com/ht182400-creator/deepthink-single/releases/tag/v0.0.4) |
