@@ -35,6 +35,24 @@ python -m unittest tests.test_cache.TestTtlCache.test_expired_returns_none
 python -m unittest discover tests -v -k TestApi   # 只跑 API 集成
 ```
 
+> **前端测试（新增，2026-08-14）**：技术指标算法（`static/js/indicators.js`）已抽离为无 DOM 依赖的纯函数模块，配套 Node 内置 test runner 单测。
+>
+> ```bash
+> # 前端指标算法单测（需 Node ≥ 18，无需浏览器）
+> node --test tests/js/*.test.js
+> # 或单文件
+> node --test tests/js/indicators.test.js
+> ```
+>
+> 覆盖：`ema` 长度/常数序列、`macd`（**D1 回归守护：DEA 与 MACD 柱不得全 null**）、`kdj`（J=3K-2D）、`boll`（上下轨对称）、`rsi`（单调上涨=100）。5 用例全绿。
+>
+> **前端语法校验**（重构/改动后快速把关，无需浏览器）：
+> ```bash
+> node --check static/js/app.js
+> node --check static/js/indicators.js
+> ```
+
+
 ## 3. 测试用例库清单（14 个模块 / 128 用例）
 
 ### 3.1 稳定性组件 core/（34 例）
@@ -64,6 +82,12 @@ python -m unittest discover tests -v -k TestApi   # 只跑 API 集成
 | `test_search.py` | 10 | 空关键词热门；名称/代码/纯代码/行业匹配；大小写不敏感；limit；无匹配；**返回结构完整性**；**纯数字前缀试探**（_guess_prefix + search_stocks_with_guess mock 探测） |
 | `test_company.py` | 12 | **东财公告解析**；**财务摘要解析**；**股东户数解析**；`_secucode` 前缀判断；失败返回空 dict；**融资融券解析**；**龙虎榜解析**；**公司信息解析**；**盈利预测解析**；**多空情绪**；**公告正文解析**（去 HTML 标签 + PDF 链接）；**公告正文空 data 容错** |
 | `test_stock_list.py` | 6 | **拼音首字母**（中微公司→zwgs）；**市场前缀**（sh/sz/bj 判断）；**clist 拉取解析**（mock 网络）；**本地 JSON 持久化**；**TTL 过期返回 None**；**search 拼音/代码/名称匹配** |
+
+### 3.3.1 前端算法 tests/js/（5 例，Node）
+
+| 模块 | 用例数 | 覆盖点 |
+|---|---|---|
+| `indicators.test.js` | 5 | `ema` 长度/常数序列；`macd`（**D1 回归守护：DEA 与 MACD 柱不得全 null、对齐不早于 DIF**）；`kdj`（J=3K-2D）；`boll`（上下轨对称于中轨）；`rsi`（单调上涨序列=100） |
 
 ### 3.4 API 集成 tests/test_api.py（15 例）
 
