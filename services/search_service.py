@@ -52,14 +52,27 @@ _HOT = [("sh600519", "贵州茅台", "白酒"), ("sz000858", "五粮液", "白�
         ("sh510300", "沪深300ETF", "ETF"), ("sh510500", "中证500ETF", "ETF"), ("sh510050", "上证50ETF", "ETF")]
 
 
+def _cat_of(code: str) -> str:
+    """由代码前缀推导市场/品种标签，统一搜索结果结构（避免前端渲染 undefined）。"""
+    code = (code or "").lower()
+    if code.startswith("bj"):
+        return "北交"
+    if code.startswith("sh"):
+        return "沪基" if code[2] in ("5", "0", "4") else "沪A"
+    if code.startswith("sz"):
+        return "深基" if code[2] in ("1", "5", "6", "8") else "深A"
+    return ""
+
+
 def search_stocks(keyword: str, limit: int = 20) -> list:
-    """全 A 股搜索：code / name / 拼音首字母。空关键词返回前 limit 条。"""
+    """全 A 股搜索：code / name / 拼音首字母。空关键词返回前 limit 条。
+    返回结构统一含 code/name/cat/display，避免命中项缺 cat 字段。"""
     out = _list_search(keyword, limit)
     # 兜底：空关键词或本地未加载 → 用 _HOT
     if not out and not keyword.strip():
         return [{"code": c, "name": n, "cat": t, "display": f"{c.upper()} {n} · {t}"}
                 for c, n, t in _HOT]
-    return [{"code": r["code"], "name": r["name"],
+    return [{"code": r["code"], "name": r["name"], "cat": _cat_of(r["code"]),
              "display": f"{r['code'].upper()} {r['name']}"} for r in out]
 
 
