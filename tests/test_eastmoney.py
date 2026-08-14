@@ -93,6 +93,27 @@ class TestEastmoney(unittest.TestCase):
             j = _get_with_fallback("/api/qt/stock/fflow/kline/get", {})
         self.assertEqual(j["data"]["klines"][0].split(",")[1], "1")
 
+    def test_5d_fund_flow_parse(self):
+        """Sprint 4 US-009：f178 JSON 字符串解析（近 5 日主力）。"""
+        from sources.eastmoney import EastmoneySource
+        f178 = ('[{"date":"2026-08-13","mainNetAmt":358946672.0},'
+                '{"date":"2026-08-12","mainNetAmt":46577744.0},'
+                '{"date":"2026-08-11","mainNetAmt":85494864.0},'
+                '{"date":"2026-08-10","mainNetAmt":664611600.0},'
+                '{"date":"2026-08-07","mainNetAmt":-116062624.0}]')
+        src = self._src([FakeResponse(json_data={"data": {"f178": f178}})])
+        out = src.get_5d_fund_flow("sh600519")
+        self.assertEqual(len(out), 5)
+        self.assertEqual(out[0]["date"], "2026-08-13")
+        self.assertEqual(out[0]["main"], 358946672.0)
+        self.assertEqual(out[4]["main"], -116062624.0)
+
+    def test_5d_fund_flow_empty_nodes(self):
+        """f178 空 / 节点失败 → 返回空（不抛错，前端隐藏）。"""
+        from sources.eastmoney import EastmoneySource
+        src = self._src([FakeResponse(json_data={"data": {"f178": ""}})])
+        self.assertEqual(src.get_5d_fund_flow("sh600519"), [])
+
     def test_all_nodes_fail_raises(self):
         from sources.eastmoney import _get_with_fallback
         with patch("sources.eastmoney.http_get",
