@@ -65,9 +65,17 @@ def upload_all():
     for rel in files:
         with open(os.path.join(ROOT, rel), "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
-        # 目录嵌套：GitHub 自动创建父目录（Content API 支持 path 含子目录）
         body = {"message": f"upload {rel}", "content": b64, "branch": BRANCH}
+        # 文件已存在（如 auto_init 的 README）→ 获取 sha 覆盖
+        gs, gj = api("GET", f"/repos/{OWNER}/{REPO}/contents/{rel}")
+        if gs == 200 and gj.get("sha"):
+            body["sha"] = gj["sha"]
         status, resp = api("PUT", f"/repos/{OWNER}/{REPO}/contents/{rel}", body)
+        # 409 规则校验超时 → 重试一次
+        if status == 409:
+            import time
+            time.sleep(2)
+            status, resp = api("PUT", f"/repos/{OWNER}/{REPO}/contents/{rel}", body)
         if status in (200, 201):
             ok += 1
         else:
