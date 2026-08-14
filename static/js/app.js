@@ -154,81 +154,9 @@
   }
 
   // ---------- 技术指标算法（标准实现） ----------
-  // EMA: n 日指数移动平均
-  function _ema(arr, n) {
-    const k = 2 / (n + 1);
-    const out = [];
-    let prev = null;
-    for (let i = 0; i < arr.length; i++) {
-      if (i < n - 1) { out.push(null); continue; }
-      if (prev === null) {
-        let s = 0;
-        for (let j = i - n + 1; j <= i; j++) s += arr[j];
-        prev = s / n;     // 初值 = n 日 SMA
-      } else {
-        prev = arr[i] * k + prev * (1 - k);
-      }
-      out.push(+prev.toFixed(4));
-    }
-    return out;
-  }
-  // MACD：DIF=EMA12-EMA26, DEA=EMA9(DIF), MACD=(DIF-DEA)*2
-  function _macd(closes) {
-    const ema12 = _ema(closes, 12);
-    const ema26 = _ema(closes, 26);
-    const dif = ema12.map((v, i) => v != null && ema26[i] != null ? +(v - ema26[i]).toFixed(4) : null);
-    // DEA = EMA9(DIF)，DIF 全 null 时不画
-    const deaRaw = dif.map(v => v == null ? null : v);
-    const dea = _ema(deaRaw.filter(v => v != null), 9);
-    // DEA 对齐到原长度（前面 33 根 null）
-    const deaFull = new Array(dif.length).fill(null).concat(dea).slice(dif.length - dif.length, dif.length * 2 - dif.length);
-    return { dif, dea: deaFull, macd: dif.map((v, i) => v != null && deaFull[i] != null ? +((v - deaFull[i]) * 2).toFixed(4) : null) };
-  }
-  // KDJ：RSV=(C-L9)/(H9-L9)*100, K=RSV*1/3 + K*2/3 (SMA), D=K*1/3 + D*2/3, J=3K-2D
-  function _kdj(highs, lows, closes, n = 9) {
-    const rsv = [];
-    const k = [], d = [], j = [];
-    for (let i = 0; i < closes.length; i++) {
-      if (i < n - 1) { rsv.push(null); k.push(null); d.push(null); j.push(null); continue; }
-      const hh = Math.max(...highs.slice(i - n + 1, i + 1));
-      const ll = Math.min(...lows.slice(i - n + 1, i + 1));
-      const r = hh === ll ? 50 : +((closes[i] - ll) / (hh - ll) * 100).toFixed(2);
-      rsv.push(r);
-      const kk = k[i - 1] == null ? r : +(r * 1/3 + k[i - 1] * 2/3).toFixed(2);
-      const dd = d[i - 1] == null ? r : +(kk * 1/3 + d[i - 1] * 2/3).toFixed(2);
-      k.push(kk); d.push(dd); j.push(+(3 * kk - 2 * dd).toFixed(2));
-    }
-    return { k, d, j };
-  }
-  // BOLL：中轨 MA20，上轨=MA20+2σ，下轨=MA20-2σ
-  function _boll(closes, n = 20) {
-    const mid = [], upper = [], lower = [];
-    for (let i = 0; i < closes.length; i++) {
-      if (i < n - 1) { mid.push(null); upper.push(null); lower.push(null); continue; }
-      const slice = closes.slice(i - n + 1, i + 1);
-      const m = slice.reduce((a, b) => a + b, 0) / n;
-      const sigma = Math.sqrt(slice.reduce((s, x) => s + (x - m) ** 2, 0) / n);
-      mid.push(+m.toFixed(2));
-      upper.push(+(m + 2 * sigma).toFixed(2));
-      lower.push(+(m - 2 * sigma).toFixed(2));
-    }
-    return { mid, upper, lower };
-  }
-  // RSI：N 日涨幅 / (涨幅 + 跌幅) × 100
-  function _rsi(closes, n = 14) {
-    const out = [];
-    for (let i = 0; i < closes.length; i++) {
-      if (i < n) { out.push(null); continue; }
-      let gain = 0, loss = 0;
-      for (let j = i - n + 1; j <= i; j++) {
-        const diff = closes[j] - closes[j - 1];
-        if (diff > 0) gain += diff; else loss -= diff;
-      }
-      const rs = loss === 0 ? 100 : gain / loss;
-      out.push(+(100 - 100 / (1 + rs)).toFixed(2));
-    }
-    return out;
-  }
+  // 算法抽出为独立可测试模块 static/js/indicators.js（在 app.js 之前加载），
+  // 此处仅引用，保证前端与测试共用同一份口径，避免口径漂移（原 D1 bug 即源于无测试）。
+  const { ema: _ema, macd: _macd, kdj: _kdj, boll: _boll, rsi: _rsi } = (window.DTIndicators || {});
 
   // ---------- 技术指标渲染器 ----------
   function renderMacd(list, idx) {
@@ -327,12 +255,25 @@
     c.resize();
   }
 
-  // ---------- 数据拉取（带竞态保护：快速切换标的时只接受最新请求） ----------
+  // ---------- 数据拉取（带竞态保护 + 超时/取消防护） ----------
+  // 同类型（key）上一次未完成的请求会被自动 abort，避免快速切换标的时请求堆积/连接耗尽；
+  // 另设安全超时，防止后端/网络挂起导致界面一直 showLoading。
+  const _abortCtrls = {};
+  function _fetchAbortable(key, url, timeoutMs) {
+    if (_abortCtrls[key]) { try { _abortCtrls[key].abort(); } catch (e) {} }
+    const ctrl = new AbortController();
+    _abortCtrls[key] = ctrl;
+    let timer = null;
+    if (timeoutMs && timeoutMs > 0) timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    return fetch(url, { signal: ctrl.signal })
+      .finally(() => { if (timer) clearTimeout(timer); if (_abortCtrls[key] === ctrl) delete _abortCtrls[key]; });
+  }
+
   let _quoteSeq = 0;
   async function loadQuote(code) {
     const seq = ++_quoteSeq;
     try {
-      const r = await fetch("/api/quote?code=" + encodeURIComponent(code));
+      const r = await _fetchAbortable("quote", "/api/quote?code=" + encodeURIComponent(code), 30000);
       const d = await r.json();
       if (seq !== _quoteSeq) return;               // 过期响应丢弃
       if (d.error && !d.quote) throw new Error(d.error);
@@ -343,7 +284,8 @@
       _renderSubcharts(d);
       $("updateTime").textContent = "更新 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
     } catch (e) {
-      if (seq !== _quoteSeq) return;
+      if (seq !== _quoteSeq) return;               // 被新请求取消 → 静默
+      if (e && e.name === "AbortError") { $("updateTime").textContent = "加载超时，重试中…"; return; }
       $("updateTime").textContent = "加载失败: " + e.message;
       console.error(e);
     }
@@ -726,6 +668,32 @@
     renderMinuteDetail(_minuteList, _selectedMinuteIdx);
   }
 
+  // ---------- 副图通用骨架：消除 12 个渲染函数重复的 backgroundColor/grid/tooltip/xAxis/yAxis 样板 ----------
+  function _zeroLine(times, name) {
+    return { name: name || "零轴", type: "line", data: times.map(() => 0), showSymbol: false,
+      lineStyle: { width: 1, color: DARK.gray, type: "dashed" } };
+  }
+  // 每分钟累计值 → 差分（首根为 0）
+  function _deltaByKey(f, key) { return f.map((x, i) => i === 0 ? 0 : (x[key] - f[i - 1][key])); }
+  function _deltaByFn(f, fn) { return f.map((x, i) => i === 0 ? 0 : fn(x, f[i - 1])); }
+  function _toWan(arr) { return arr.map(v => +(v / 1e4).toFixed(1)); }   // 元 → 万元
+  function _subAxis(times) { return { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } }; }
+  // 组装副图通用 ECharts option；times/yFmt/tip/series 各函数按需提供，xAxis/grid/legend 可覆盖
+  function buildSubOption(cfg) {
+    const opt = {
+      backgroundColor: DARK.bg,
+      grid: cfg.grid || baseGrid(),
+      tooltip: { trigger: "axis", confine: true, formatter: cfg.tip },
+      xAxis: cfg.xAxis || _subAxis(cfg.times),
+      yAxis: { type: "value", splitNumber: cfg.splitNumber || 3,
+        axisLabel: { color: DARK.label, fontSize: 10, formatter: cfg.yFmt },
+        splitLine: { lineStyle: { color: "#1b222c" } } },
+      series: cfg.series,
+    };
+    if (cfg.legend) opt.legend = cfg.legend;
+    return opt;
+  }
+
   // ---------- ② VOLFS（每分钟成交量，按价格涨跌方向染色：红涨绿跌对齐通达信/A 股惯例） ----------
   function renderVolfs(d, idx = 0) {
     const c = charts.sub[idx];
@@ -746,18 +714,13 @@
         colors.push(DARK.gray); // 平
       }
     }
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>" + ps[0].seriesName + ": " + ps[0].value + " 手" },
-      xAxis: { type: "category", data: rawT.map(normT), axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => (v >= 10000 ? (v / 10000).toFixed(0) + "万手" : v + "手") },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildSubOption({
+      times: rawT.map(normT),
+      yFmt: v => (v >= 10000 ? (v / 10000).toFixed(0) + "万手" : v + "手"),
+      tip: ps => ps[0].name + "<br/>" + ps[0].seriesName + ": " + ps[0].value + " 手",
       series: [{ name: "每分钟成交量", type: "bar", data: vols, barWidth: "60%",
         itemStyle: { color: (p) => colors[p.dataIndex] } }],
-    });
+    }));
     c.resize();
   }
 
@@ -769,20 +732,17 @@
     if (!f.length) return;
     const times = f.map(x => normT(x.t));
     const main = f.map(x => x.main);
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true, formatter: ps => { const p = ps[0]; return p.name + "<br/>主力净流入: " + (p.value / 1e8).toFixed(2) + " 亿"; } },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 4,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => (v / 1e8).toFixed(1) + "亿" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildSubOption({
+      times,
+      splitNumber: 4,
+      yFmt: v => (v / 1e8).toFixed(1) + "亿",
+      tip: ps => { const p = ps[0]; return p.name + "<br/>主力净流入: " + (p.value / 1e8).toFixed(2) + " 亿"; },
       series: [{ name: "主力净流入", type: "line", data: main, showSymbol: false,
         lineStyle: { width: 1.6, color: DARK.purple },
         areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [{ offset: 0, color: "rgba(137,87,229,.45)" }, { offset: 1, color: "rgba(137,87,229,.02)" }] } },
         itemStyle: { color: DARK.purple } }],
-    });
+    }));
     c.resize();
   }
 
@@ -796,19 +756,15 @@
     if (!rows.length) return;
     const dates = rows.map(x => x.date.slice(5));
     const mains = rows.map(x => +(x.main / 1e8).toFixed(2));   // 亿元
-    c.setOption({
-      backgroundColor: DARK.bg,
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>主力净流入: " + ps[0].value.toFixed(2) + " 亿" },
+    c.setOption(buildSubOption({
       grid: { left: 56, right: 20, top: 12, bottom: 18 },
       xAxis: { type: "category", data: dates, axisLabel: { fontSize: 10, color: DARK.label } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v.toFixed(1) + "亿" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+      yFmt: v => v.toFixed(1) + "亿",
+      tip: ps => ps[0].name + "<br/>主力净流入: " + ps[0].value.toFixed(2) + " 亿",
       series: [{ name: "主力净流入", type: "bar", data: mains, barWidth: "55%",
         itemStyle: { color: (p) => p.data >= 0 ? DARK.up : DARK.down },
         label: { show: true, position: "top", fontSize: 9, color: DARK.label, formatter: p => p.value.toFixed(2) } }],
-    });
+    }));
     c.resize();
   }
 
@@ -838,29 +794,23 @@
     const mainBar = mainW.map(v => +v.toFixed(1));
     // US-010 异动告警：|主力净额差分| > 中位数×3 → 橙色高亮
     const { alerts } = _renderAlertsInto(c, mainDelta);
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => {
-          let s = ps[0].name;
-          ps.forEach(p => { s += "<br/>" + p.seriesName + ": " + p.value.toFixed(1) + " 万"; });
-          return s;
-        } },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v.toFixed(0) + "万" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildSubOption({
+      times,
+      yFmt: v => v.toFixed(0) + "万",
+      tip: ps => {
+        let s = ps[0].name;
+        ps.forEach(p => { s += "<br/>" + p.seriesName + ": " + p.value.toFixed(1) + " 万"; });
+        return s;
+      },
       legend: { data: ["主力净额", "散户净额"], textStyle: { color: DARK.label, fontSize: 10 }, top: 4 },
       series: [
         { name: "主力净额", type: "bar", data: mainBar, barWidth: "50%",
           itemStyle: { color: (p) => alerts[p.dataIndex] ? "#ff8c00" : DARK.purple } },
         { name: "散户净额", type: "line", data: smallW, showSymbol: false, yAxisIndex: 0,
           lineStyle: { width: 1.5, color: "#ffd700", opacity: 0.75, type: "solid" }, itemStyle: { color: "#ffd700" } },
-        { name: "零轴", type: "line", data: times.map(() => 0), showSymbol: false,
-          lineStyle: { width: 1, color: DARK.gray, type: "dashed" } },
+        _zeroLine(times),
       ],
-    });
+    }));
     c.resize();
   }
 
@@ -873,24 +823,18 @@
     const times = f.map(x => normT(x.t));
     const smallDelta = f.map((x, i) => i === 0 ? 0 : x.small - f[i - 1].small);
     const smallW = smallDelta.map(v => +(v / 1e4).toFixed(1));
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>散户净额: " + ps[0].value.toFixed(1) + " 万" },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v.toFixed(0) + "万" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildSubOption({
+      times,
+      yFmt: v => v.toFixed(0) + "万",
+      tip: ps => ps[0].name + "<br/>散户净额: " + ps[0].value.toFixed(1) + " 万",
       series: [
         { name: "散户净额", type: "line", data: smallW, showSymbol: false,
           lineStyle: { width: 1.6, color: "#ffd700" },
           areaStyle: { color: "rgba(255,215,0,0.15)" },
           itemStyle: { color: "#ffd700" } },
-        { name: "零轴", type: "line", data: times.map(() => 0), showSymbol: false,
-          lineStyle: { width: 1, color: DARK.gray, type: "dashed" } },
+        _zeroLine(times),
       ],
-    });
+    }));
     c.resize();
   }
 
@@ -901,26 +845,19 @@
     const f = d.fund || [];
     if (!f.length) return;
     const times = f.map(x => normT(x.t));
-    const bigDelta = f.map((x, i) => i === 0 ? 0 : x.big - f[i - 1].big);
-    const bigW = bigDelta.map(v => +(v / 1e4).toFixed(1));
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>大单净额: " + ps[0].value.toFixed(1) + " 万" },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v.toFixed(0) + "万" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    const bigW = _toWan(_deltaByKey(f, "big"));
+    c.setOption(buildSubOption({
+      times,
+      yFmt: v => v.toFixed(0) + "万",
+      tip: ps => ps[0].name + "<br/>大单净额: " + ps[0].value.toFixed(1) + " 万",
       series: [
         { name: "大单净额", type: "line", data: bigW, showSymbol: false,
           lineStyle: { width: 1.6, color: DARK.up },
           areaStyle: { color: "rgba(248,81,73,0.15)" },
           itemStyle: { color: DARK.up } },
-        { name: "零轴", type: "line", data: times.map(() => 0), showSymbol: false,
-          lineStyle: { width: 1, color: DARK.gray, type: "dashed" } },
+        _zeroLine(times),
       ],
-    });
+    }));
     c.resize();
   }
 
@@ -929,29 +866,23 @@
     const f = d.fund || [];
     if (!f.length) return;
     const times = f.map(x => normT(x.t));
-    const delta = f.map((x, i) => i === 0 ? 0 : x[key] - f[i - 1][key]);
-    const series = isRatio
+    const delta = _deltaByKey(f, key);
+    const vals = isRatio
       ? delta.map(v => +(v * 100).toFixed(2))  // 比率转 %
-      : delta.map(v => +(v / 1e4).toFixed(1)); // 元转万元
+      : _toWan(delta);                          // 元转万元
     const yFmt = isRatio ? "{value}%" : "{value}万";
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>" + name + ": " + ps[0].value.toFixed(2) + (isRatio ? "%" : " 万") },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: yFmt },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildSubOption({
+      times,
+      yFmt,
+      tip: ps => ps[0].name + "<br/>" + name + ": " + ps[0].value.toFixed(2) + (isRatio ? "%" : " 万"),
       series: [
-        { name, type: "line", data: series, showSymbol: false,
+        { name, type: "line", data: vals, showSymbol: false,
           lineStyle: { width: 1.6, color },
           areaStyle: { color: color + "26" },
           itemStyle: { color } },
-        { name: "零轴", type: "line", data: times.map(() => 0), showSymbol: false,
-          lineStyle: { width: 1, color: DARK.gray, type: "dashed" } },
+        _zeroLine(times),
       ],
-    });
+    }));
     c.resize();
   }
   function renderSuperBig(d, idx) { _renderDeltaLine(charts.sub[idx], d, "super_big", "#a371f7", "超大单净额", idx); }
@@ -962,25 +893,19 @@
     const f = d.fund || [];
     if (!f.length) return;
     const times = f.map(x => normT(x.t));
-    const delta = f.map((x, i) => i === 0 ? 0 : (x.main - x.small) - (f[i - 1].main - f[i - 1].small));
-    const data = delta.map(v => +(v / 1e4).toFixed(1));
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>买卖力道: " + ps[0].value.toFixed(1) + " 万" },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v.toFixed(0) + "万" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    const delta = _deltaByFn(f, (x, prev) => (x.main - x.small) - (prev.main - prev.small));
+    const data = _toWan(delta);
+    c.setOption(buildSubOption({
+      times,
+      yFmt: v => v.toFixed(0) + "万",
+      tip: ps => ps[0].name + "<br/>买卖力道: " + ps[0].value.toFixed(1) + " 万",
       series: [
         { name: "买卖力道", type: "line", data, showSymbol: false,
           lineStyle: { width: 1.6, color: DARK.up },
           areaStyle: { color: "rgba(248,81,73,0.15)" }, itemStyle: { color: DARK.up } },
-        { name: "零轴", type: "line", data: times.map(() => 0), showSymbol: false,
-          lineStyle: { width: 1, color: DARK.gray, type: "dashed" } },
+        _zeroLine(times),
       ],
-    });
+    }));
     c.resize();
   }
   function renderTurnover(d, idx) {
@@ -989,52 +914,40 @@
     const f = d.fund || [];
     if (!f.length) return;
     const times = f.map(x => normT(x.t));
-    // 东财 quote 可能不直接给 float_share；从 quote.volume / 流通股本估算（粗略）
-    // 用 quote.outer + quote.inner + ... 等数据：总成交额 / 流通市值 = 当日换手率（约）
-    // 简化：用东财 stock detail 的 f168 换手率（盘中累计）作为整体换手率近似
+    // 注：东财免费源不直接给逐分钟换手率，这里是"当日累计换手率 ÷ 240 分钟"的线性估算，
+    // 仅用于观察盘中换手节奏，非真实逐分钟换手。已在名称/提示中标注"估算"。
     const cumTurnover = (d.quote && d.quote.turnover_pct) || 0;
-    // 每分钟均匀分布（粗略）
     const perMin = cumTurnover / 240;  // 估算每分钟
     const series = times.map((_, i) => +(perMin * (i + 1)).toFixed(3));
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>累计换手: " + ps[0].value.toFixed(2) + "%" },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v.toFixed(2) + "%" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
-      series: [{ name: "累计换手率", type: "line", data: series, showSymbol: false,
+    c.setOption(buildSubOption({
+      times,
+      yFmt: v => v.toFixed(2) + "%",
+      tip: ps => ps[0].name + "<br/>累计换手(估算): " + ps[0].value.toFixed(2) + "%",
+      series: [{ name: "累计换手率(估算)", type: "line", data: series, showSymbol: false,
         lineStyle: { width: 1.6, color: "#58a6ff" }, areaStyle: { color: "rgba(88,166,255,0.15)" },
         itemStyle: { color: "#58a6ff" } }],
-    });
+    }));
     c.resize();
   }
   function renderOuterBuy(d, idx) {
-    // 外盘内盘差：quote.outer - quote.inner（单值，反映当前快照，非分钟级）
+    // 外盘内盘差：quote.outer - quote.inner（单值，是日级快照，无法分钟级）
     const c = charts.sub[idx]; if (!c) return;
     const f = d.minute || [];
     if (!f.length) return;
     const times = f.map(x => normT(x.t));
     const q = d.quote || {};
     const diff = (q.outer || 0) - (q.inner || 0);
-    // 简化：所有分钟显示同一个总差值（外内盘是日级数据，无法分钟级）
+    // 外盘/内盘是当日累计快照，逐分钟无意义：整段画同一条水平线，并明确标注为"日级快照"
     const series = times.map(() => diff);
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => "外盘-内盘: " + ps[0].value + " 手（日级快照）" },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v + "手" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
-      series: [{ name: "外内盘差", type: "line", data: series, showSymbol: false,
-        lineStyle: { width: 1.6, color: diff >= 0 ? DARK.up : DARK.down },
+    c.setOption(buildSubOption({
+      times,
+      yFmt: v => v.toLocaleString() + "手",
+      tip: ps => "外盘-内盘(日级快照): " + ps[0].value.toLocaleString() + " 手",
+      series: [{ name: "外内盘差(日级快照)", type: "line", data: series, showSymbol: false,
+        lineStyle: { width: 1.6, type: "dashed", color: diff >= 0 ? DARK.up : DARK.down },
         areaStyle: { color: (diff >= 0 ? "248,81,73" : "63,185,80") + ",0.15" },
         itemStyle: { color: diff >= 0 ? DARK.up : DARK.down } }],
-    });
+    }));
     c.resize();
   }
   function renderAmtDiff(d, idx) {
@@ -1043,21 +956,14 @@
     const m = d.minute || [];
     if (!m.length) return;
     const times = m.map(x => normT(x.t));
-    const amts = m.map(x => x.amount || 0);
-    const diff = amts.map((v, i) => i === 0 ? 0 : v - amts[i - 1]);
-    const data = diff.map(v => +(v / 1e4).toFixed(1));
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>成交额: " + ps[0].value.toFixed(1) + " 万" },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v.toFixed(0) + "万" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    const data = _toWan(_deltaByKey(m, "amount"));
+    c.setOption(buildSubOption({
+      times,
+      yFmt: v => v.toFixed(0) + "万",
+      tip: ps => ps[0].name + "<br/>成交额: " + ps[0].value.toFixed(1) + " 万",
       series: [{ name: "成交额差分", type: "bar", data, barWidth: "60%",
         itemStyle: { color: (p) => p.data >= 0 ? DARK.up : DARK.down } }],
-    });
+    }));
     c.resize();
   }
   function renderMainRatio(d, idx) {
@@ -1078,21 +984,15 @@
         series.push(0);
       }
     }
-    c.setOption({
-      backgroundColor: DARK.bg,
-      grid: baseGrid(),
-      tooltip: { trigger: "axis", confine: true,
-        formatter: ps => ps[0].name + "<br/>主力占比: " + ps[0].value.toFixed(2) + "%" },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 55 } },
-      yAxis: { type: "value", splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v + "%" },
-        splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildSubOption({
+      times,
+      yFmt: v => v + "%",
+      tip: ps => ps[0].name + "<br/>主力占比: " + ps[0].value.toFixed(2) + "%",
       series: [{ name: "主力占比", type: "line", data: series, showSymbol: false,
         lineStyle: { width: 1.6, color: DARK.purple },
         areaStyle: { color: "rgba(137,87,229,0.15)" }, itemStyle: { color: DARK.purple } },
-        { name: "零轴", type: "line", data: times.map(() => 0), showSymbol: false,
-          lineStyle: { width: 1, color: DARK.gray, type: "dashed" } }],
-    });
+        _zeroLine(times)],
+    }));
     c.resize();
   }
   let _klineSeq = 0;
@@ -1109,7 +1009,7 @@
       while (p) {
         const all = (p === "day" || p === "week" || p === "month");
         const limit = all ? 0 : 260;
-        const r = await fetch("/api/kline?code=" + encodeURIComponent(current) + "&period=" + p + "&limit=" + limit);
+        const r = await _fetchAbortable("kline", "/api/kline?code=" + encodeURIComponent(current) + "&period=" + p + "&limit=" + limit, 60000);
         const data = await r.json();
         if (seq !== _klineSeq) return;
         if (Array.isArray(data) && data.length >= 10) { list = data; break; }
@@ -1132,7 +1032,8 @@
       $("klineTitle").textContent = klineName + " · " + periodLabel(p) + " · " + list.length + " 根"
         + (lastDate ? " · 截至 " + lastDate.slice(5) : "") + staleNote;
     } catch (e) {
-      if (seq !== _klineSeq) return;
+      if (seq !== _klineSeq) return;               // 被新请求取消 → 静默
+      if (e && e.name === "AbortError") { $("klineTitle").textContent = "K线加载超时"; return; }
       $("klineTitle").textContent = "K线加载失败: " + e.message;
       console.error(e);
     } finally {
@@ -1249,18 +1150,19 @@
   }
 
   // ---------- K线主图 → 副图 dataZoom 同步 ----------
+  // 使用模块级稳定引用，避免每次 renderKline 生成新闭包导致 off() 无法移除旧监听、监听只增不减
+  function _onKlineDataZoom() {
+    if (!charts.klineSub || !charts.klineSub.length) return;
+    const dz = (charts.p4.getOption().dataZoom || [])[0];
+    if (!dz) return;
+    const action = { type: "dataZoom" };
+    if (dz.start != null) { action.start = dz.start; action.end = dz.end; }
+    if (dz.startValue != null) { action.startValue = dz.startValue; action.endValue = dz.endValue; }
+    charts.klineSub.forEach(c => { try { c.dispatchAction(action); } catch (e) {} });
+  }
   function _bindKlineZoomSync() {
-    const handler = () => {
-      if (!charts.klineSub || !charts.klineSub.length) return;
-      const dz = (charts.p4.getOption().dataZoom || [])[0];
-      if (!dz) return;
-      const action = { type: "dataZoom" };
-      if (dz.start != null) { action.start = dz.start; action.end = dz.end; }
-      if (dz.startValue != null) { action.startValue = dz.startValue; action.endValue = dz.endValue; }
-      charts.klineSub.forEach(c => { try { c.dispatchAction(action); } catch (e) {} });
-    };
-    charts.p4.off("dataZoom", handler);   // 避免重复绑定
-    charts.p4.on("dataZoom", handler);
+    charts.p4.off("dataZoom", _onKlineDataZoom);   // 稳定引用 → 旧监听可被正确移除
+    charts.p4.on("dataZoom", _onKlineDataZoom);
   }
 
   // K 线面板交互：双击 / 回车 → 弹历史分时小图
@@ -1534,8 +1436,13 @@
 
     window.addEventListener("resize", () => {
       syncMinuteRightHeight();
-      if (_view === "minute") { charts.p1.resize(); charts.p2.resize(); charts.p3.resize(); charts.p5.resize(); }
-      else charts.p4.resize();
+      if (_view === "minute") {
+        if (charts.p1) charts.p1.resize();
+        (charts.sub || []).forEach(c => c && c.resize());   // p2/p3/p5 从未 init，改用实际的副图数组
+      } else {
+        if (charts.p4) charts.p4.resize();
+        (charts.klineSub || []).forEach(c => c && c.resize());
+      }
     });
 
     // 历史分时模态关闭
