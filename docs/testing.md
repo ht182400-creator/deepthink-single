@@ -74,7 +74,7 @@ python -m unittest discover tests -v -k TestApi   # 只跑 API 集成
 | `test_quote_error_still_200` | **服务失败仍 200 + error 字段**（前端不崩） |
 | `test_search` / `test_kline_success` / `test_kline_failure_500` | 200 结构 / 500 错误 |
 | `test_many` / `test_many_empty_codes_400` | 批量 / 参数校验 |
-| `test_watchlist_default` / `test_watchlist_add_remove` | 自选增删；default 断言 len>10（115+ 预置池）+ 第一项 in_watchlist=True |
+| `test_watchlist_default` / `test_watchlist_add_remove` | 自选增删；default 断言 len>10（5549+ 全 A 股池）+ 第一项 in_watchlist=True |
 | `test_sysinfo` / `test_no_cache_headers` | 环境信息 / 反缓存头 |
 | `test_announcement_route` | **公告正文路由**（mock content 返回结构；缺 code 400） |
 | `test_real_quote` / `test_real_kline_day`（**冒烟**） | 真实链路数据完整性；失败自动 skip |
@@ -94,7 +94,7 @@ python -m unittest discover tests -v -k TestApi   # 只跑 API 集成
 | 9 | `static/js/app.js` | **VOLFS 染色与"价格涨跌方向"不一致**（原按主力资金流染色） | 行业惯例 VOLFS 柱色按"该分钟价格变化方向"染色（A 股：红涨绿跌），参考通达信/同花顺 | `renderVolfs` 改为 `m[i].price vs m[i-1].price` 比较染色 |
 | 10 | `static/js/app.js` | **分时图右侧无选中分钟详情**：用户按方向键时无法查看"某分钟"的成交明细 | 缺少键盘切换分钟 + 右侧详情面板机制 | 加 `_selectedMinuteIdx` 全局状态 + `p1.keydown` 监听 ↑/↓ + `renderOrderBook(q, minuteList, selIdx)` 扩展签名 + 详情面板显示价格/均价/每分成交/成交额 |
 | 11 | `tests/test_tencent.py` | **测试 mock 字段不足**：`_quote_text()` 只 40 字段且结尾 `"0";` 分号串到 f[39]，新代码 `float(f[39])` 报 `'0";'` | mock 数据与真实腾讯快照字段数不符 | mock 补足到 60 个真实字段（外盘/内盘/PE/市值/市净率/量比/均价），修正 f[37] 保持 amount 断言 |
-| 12 | `app.py` | **watchlist 只返回自选 4 项**，下拉列表太短 | API 只返回自选，不含预置池 | `api_watchlist` 改为返回 watchlist + 全部预置池（115+ 项），每项 `{code, name, in_watchlist}`；`test_watchlist_default` 增加 len>10 与 in_watchlist 断言 |
+| 12 | `app.py` | **watchlist 只返回自选 4 项**，下拉列表太短 | API 只返回自选，不含预置池 | `api_watchlist` 改为返回 watchlist + 全部预置池（5549+ 项），每项 `{code, name, in_watchlist}`；`test_watchlist_default` 增加 len>10 与 in_watchlist 断言 |
 | 13 | `sources/tencent.py` | **五档盘口缺外盘/内盘/PE/市值/市净率/量比/均价**，用户要求的指标显示不了 | quote 只解了 30 个字段 | 按实测扩展 f[7]/f[8]/f[39]/f[44]/f[45]/f[46]/f[49]/f[51] 8 字段；前端补 16 项指标 2 组/行 |
 
 
