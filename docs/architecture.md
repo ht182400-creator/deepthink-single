@@ -85,20 +85,23 @@ E:\AI_Studio\deepthinkSingle\
 │
 ├── services/                 # 服务层（业务逻辑，可单测）
 │   ├── __init__.py
-│   ├── quote_service.py      # 报价+分时（腾讯→东财降级）
-│   ├── kline_service.py      # K线（通达信本地→npx，多周期聚合）
-│   ├── fund_service.py       # 主力资金（东财，多节点）
-│   ├── search_service.py     # 搜索（预置池→在线兜底）
-│   └── cache_service.py      # SQLite + 文件双缓存统一封装
+│   ├── quote_service.py      # 报价+分时+资金+综合数据（get_all 聚合）
+│   ├── search_service.py     # 搜索（调 stock_list 全 A 股 + 拼音）
+│   ├── stock_list.py         # 全A股清单（东财 clist 拉取 + pypinyin + 本地 JSON）
+│   └── db.py                 # SQLite 自选/复盘（WAL 预留）
 │
 ├── sources/                  # 数据源适配器（实现统一 Source 接口）
 │   ├── __init__.py
 │   ├── base.py               # Source 抽象基类 + 降级编排器
 │   ├── tencent.py            # 腾讯自选股（分时/报价/K线）
-│   ├── eastmoney.py          # 东方财富（主力资金/K线/分时）
+│   ├── eastmoney.py          # 东方财富（主力资金/5日主力 f178/K线/分时）
 │   ├── tdx.py                # 通达信本地 .day（历史日/周/月）
 │   ├── npx.py                # npx westock-data-skillhub（兜底）
-│   └── company.py            # 公司综合（公告/财务/股东）
+│   └── company.py            # 公司综合（公告/财务/股东/两融/龙虎榜/预测）
+│
+├── tools/                    # 工具脚本（发布/GitHub 同步）
+│   ├── upload_to_github.py   # Contents API 全量上传（沙箱 git 出网受限）
+│   └── do_release.py         # 上传 + 打 tag + 创建 release（V0.0.x）
 │
 ├── static/
 │   ├── css/style.css
@@ -138,11 +141,12 @@ E:\AI_Studio\deepthinkSingle\
 
 | API | 方法 | 参数 | 说明 |
 |---|---|---|---|
-| `/api/quote` | GET | code | 报价 + 分时 + 主力资金（一次拉齐）。quote 含 16+ 指标。附加：stats（60/360/今年涨幅+一年高/低）、finance（财务摘要）、holders（股东户数）、announcements（公告）、margin（融资融券）、lhb（龙虎榜）、company（公司信息）、forecast（盈利预测）、profit_trend（年度净利）、sentiment（主力多空） |
+| `/api/quote` | GET | code | 报价 + 分时 + 主力资金（一次拉齐）。quote 含 16+ 指标。附加：stats（60/360/今年涨幅+一年高/低）、finance（财务摘要）、holders（股东户数）、announcements（公告）、margin（融资融券）、lhb（龙虎榜）、company（公司信息）、forecast（盈利预测）、profit_trend（年度净利）、sentiment（主力多空）、day_fund_5d（近5日主力净流入） |
 | `/api/kline` | GET | code, period, limit | 历史/分钟 K 线（limit<=0 返回全量，日/周/月不限制根数） |
 | `/api/minute` | GET | code, date(YYYYMMDD) | 分时：缺省当日；填 date 拉历史某日（免费源约 30 天）。收盘后自动截断 15:00 后伪数据 |
 | `/api/search` | GET | q | 股票搜索（纯数字自动猜前缀 + 探测真实中文名） |
-| `/api/watchlist` | GET/POST | - | 自选 CRUD；GET 返回 watchlist + 全部预置池（115+ 项，含 in_watchlist 标记，前端 datalist 用） |
+| `/api/watchlist` | GET/POST | - | 自选 CRUD；GET 返回 watchlist + 全部预置池（5549+ 项，含 in_watchlist 标记，前端 datalist 用） |
+| `/api/announcement` | GET | code=ANxxx | 公告正文（标题/日期/纯文本/PDF 链接） |
 | `/api/fund` | GET | code | 主力资金明细（分钟级） |
 | `/api/sysinfo` | GET | - | 环境/数据源状态 |
 
@@ -265,10 +269,10 @@ tests/
 
 | 阶段 | 内容 |
 |---|---|
-| **Sprint 2（当前）** | 目录重构 + 分层落地 + 通达信本地化 + SQLite |
-| **Sprint 3** | 自选批量表格（涨跌幅摘要）+ 分钟资金流明细 + 搜索在线兜底 |
-| **Sprint 4** | 多日主力对比（日K资金柱）+ 主力异动告警 |
-| **Sprint 5** | 复盘记录（SQLite）+ 数据导出 CSV |
+| **Sprint 2（完成）** | 目录重构 + 分层落地 + 通达信本地化 + SQLite |
+| **Sprint 3（完成 2026-08-14）** | 自选批量表格 + 分钟资金流明细 + 全A股拼音搜索（stock_list.py 本地 JSON） |
+| **Sprint 4（完成 2026-08-14）** | 多日主力对比（5日柱 f178）+ 主力异动告警 + CSV 导出 |
+| **Sprint 5（backlog）** | 复盘记录（SQLite，前置 US-026 WAL）+ 分笔明细/分价表（Level2） |
 
 ## 9. 风险与对策
 
