@@ -117,8 +117,9 @@ def create_release(sha):
 
 
 if __name__ == "__main__":
+    globals()["TAG"] = sys.argv[1] if len(sys.argv) > 1 else "v0.0.2"
     TOKEN = get_token()
-    print(f"token 前缀: {TOKEN[:8]}")
+    print(f"发布 {TAG} · token 前缀: {TOKEN[:8]}")
     if not upload_all():
         print("有文件上传失败，中止打 tag")
         sys.exit(1)
