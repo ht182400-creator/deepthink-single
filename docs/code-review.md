@@ -70,9 +70,9 @@ data_provider.py (71 行)     ⚠️ 兼容转发层（deprecated）
 | 优先级 | 项 | 说明 |
 |---|---|---|
 | P1 | 前端 fetch 超时/取消 | K线 npx 最长 60s，建议 `AbortController` 防悬挂 |
-| P1 | SQLite WAL 模式 | Sprint 3 批量并发写前启用 |
+| P1 | SQLite WAL 模式 | 复盘记录（US-017）落地前启用 |
 | P2 | 东财 K线适配器 | 调研过 HTTP 接口不稳，暂不接入；实现后加回 `KLINE_DAY_SOURCES` |
-| P2 | 搜索在线兜底 | 当前仅预置池 120+，Sprint 3 接东财搜索 API（限流注意） |
+| P2 | 搜索在线兜底 | ✅ 已完成（stock_list.py 全 A 股 5549+ 本地 JSON + 拼音） |
 | P2 | 覆盖率门禁 | 建议 `coverage` ≥80%（core 90%）进 CI |
 | P3 | 数据质量校验 | 架构文档已设计（跳变/跨源交叉校验），未落地 |
 
