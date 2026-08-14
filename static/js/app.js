@@ -52,6 +52,7 @@
     { id: "outerbuy", name: "外盘内盘差（外盘 - 内盘）" },
     { id: "amtdiff",  name: "每分钟成交额差分（万元）" },
     { id: "mainratio", name: "主力占比（主力净流入/总成交额 %）" },
+    { id: "day5",    name: "近5日主力净流入（柱，东财 f178）" },
   ];
   const SUB_DEFAULT = ["volfs", "mainflow", "game"];   // 默认 3 个副图
   let _subConfig = [];                                   // 运行时配置
@@ -97,7 +98,7 @@
         superbig: renderSuperBig, middlenet: renderMiddleNet,
         power: renderPower, turnover: renderTurnover,
         outerbuy: renderOuterBuy, amtdiff: renderAmtDiff,
-        mainratio: renderMainRatio,
+        mainratio: renderMainRatio, day5: renderDay5,
       };
       const fn = map[tid]; if (fn) fn(d, idx);
     });
@@ -263,9 +264,17 @@
       grid: { left: 56, right: 20, top: 8, bottom: 18 },
       dataZoom: [{ type: "inside", xAxisIndex: 0, zoomLock: true }],
       xAxis: { type: "category", data: dates, axisLabel: { show: false }, splitLine: { show: false } },
-      yAxis: { min: 0, max: 100, splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10 }, splitLine: { lineStyle: { color: "#1b222c" } } },
+      // J = 3K - 2D 可超出 0~100，用 scale 自适应；保留 20/50/80 三条参考线（超买超卖区）
+      yAxis: { scale: true, splitNumber: 4,
+        axisLabel: { color: DARK.label, fontSize: 10 }, splitLine: { lineStyle: { color: "#1b222c" } },
+        minInterval: 10 },
       series: [
+        { name: "_ref20", type: "line", data: dates.map(() => 20), showSymbol: false,
+          lineStyle: { width: 0.5, color: "#6e7681", type: "dashed" }, itemStyle: { color: "#6e7681" },
+          tooltip: { show: false } },
+        { name: "_ref80", type: "line", data: dates.map(() => 80), showSymbol: false,
+          lineStyle: { width: 0.5, color: "#6e7681", type: "dashed" }, itemStyle: { color: "#6e7681" },
+          tooltip: { show: false } },
         { name: "K", type: "line", data: k, showSymbol: false, lineStyle: { width: 1, color: "#ffd700" }, itemStyle: { color: "#ffd700" } },
         { name: "D", type: "line", data: d, showSymbol: false, lineStyle: { width: 1, color: "#a371f7" }, itemStyle: { color: "#a371f7" } },
         { name: "J", type: "line", data: j, showSymbol: false, lineStyle: { width: 1, color: "#58a6ff" }, itemStyle: { color: "#58a6ff" } },
@@ -780,7 +789,41 @@
   // ---------- ③.5 资金博弈副图（通达信「分时资金博弈 - Level2精简版」适配） ----------
   // 通达信公式：主力净额=(超B+大B)-(超S+大S)；散户净额=小B-小S
   // 数据源为东财分钟资金（main/small 为累计值），此处取每分钟增量并换算万元。
-  // ---------- 资金博弈副图（同花顺配色：主力紫色柱 + 散户黄色线，对应"主力提前买入→拉升"识别） ----------
+    // ---------- US-009 近5日主力净流入（柱状） ----------
+  function renderDay5(d, idx) {
+    const c = charts.sub[idx]; if (!c) return;
+    const rows = d.day_fund_5d || [];
+    if (!rows.length) return;
+    const dates = rows.map(x => x.date.slice(5));
+    const mains = rows.map(x => +(x.main / 1e8).toFixed(2));   // 亿元
+    c.setOption({
+      backgroundColor: DARK.bg,
+      tooltip: { trigger: "axis", confine: true,
+        formatter: ps => ps[0].name + "<br/>主力净流入: " + ps[0].value.toFixed(2) + " 亿" },
+      grid: { left: 56, right: 20, top: 12, bottom: 18 },
+      xAxis: { type: "category", data: dates, axisLabel: { fontSize: 10, color: DARK.label } },
+      yAxis: { type: "value", splitNumber: 3,
+        axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v.toFixed(1) + "亿" },
+        splitLine: { lineStyle: { color: "#1b222c" } } },
+      series: [{ name: "主力净流入", type: "bar", data: mains, barWidth: "55%",
+        itemStyle: { color: (p) => p.data >= 0 ? DARK.up : DARK.down },
+        label: { show: true, position: "top", fontSize: 9, color: DARK.label, formatter: p => p.value.toFixed(2) } }],
+    });
+    c.resize();
+  }
+
+  // ---------- US-010 主力异动告警（资金博弈副图内） ----------
+  function _renderAlertsInto(gameChart, mainDelta) {
+    // 阈值：|delta| > 当日中位数 × 3（自适应）→ 柱体橙色高亮
+    const abs = mainDelta.map(Math.abs).filter(v => v > 0);
+    if (!abs.length) return;
+    abs.sort((a, b) => a - b);
+    const median = abs[Math.floor(abs.length / 2)] || 1;
+    const threshold = median * 3;
+    return { threshold, alerts: mainDelta.map(v => Math.abs(v) > threshold && v !== 0) };
+  }
+
+  // ---------- 资金博弈副图（同花顺配色：主力紫色柱 + 散户黄色线） ----------
   function renderFundGame(d, idx = 2) {
     const c = charts.sub[idx];
     if (!c) return;
@@ -793,6 +836,8 @@
     const smallW = smallDelta.map(v => +(v / 1e4).toFixed(1));
     // 主力净额柱（紫色，正负双向）；散户净额（黄色线）
     const mainBar = mainW.map(v => +v.toFixed(1));
+    // US-010 异动告警：|主力净额差分| > 中位数×3 → 橙色高亮
+    const { alerts } = _renderAlertsInto(c, mainDelta);
     c.setOption({
       backgroundColor: DARK.bg,
       grid: baseGrid(),
@@ -809,7 +854,7 @@
       legend: { data: ["主力净额", "散户净额"], textStyle: { color: DARK.label, fontSize: 10 }, top: 4 },
       series: [
         { name: "主力净额", type: "bar", data: mainBar, barWidth: "50%",
-          itemStyle: { color: DARK.purple } },
+          itemStyle: { color: (p) => alerts[p.dataIndex] ? "#ff8c00" : DARK.purple } },
         { name: "散户净额", type: "line", data: smallW, showSymbol: false, yAxisIndex: 0,
           lineStyle: { width: 1.5, color: "#ffd700", opacity: 0.75, type: "solid" }, itemStyle: { color: "#ffd700" } },
         { name: "零轴", type: "line", data: times.map(() => 0), showSymbol: false,
@@ -1289,12 +1334,51 @@
     _view = v;
     $("minuteView").classList.toggle("hidden", v !== "minute");
     $("klineView").classList.toggle("hidden", v !== "kline");
+    $("watchlistView").classList.toggle("hidden", v !== "watchlist");
     if (v === "kline") {
       loadKline(_klinePeriod || "day");
       setTimeout(() => charts.p4.resize(), 50);
+    } else if (v === "watchlist") {
+      loadWatchlistTable();
     } else {
       charts.p4.clear();
-      setTimeout(() => { charts.p1.resize(); charts.p2.resize(); charts.p3.resize(); charts.p5.resize(); }, 50);
+      setTimeout(() => {
+        charts.p1.resize();
+        charts.sub.forEach(c => { try { c.resize(); } catch (e) {} });
+      }, 50);
+    }
+  }
+
+  // ---------- US-006 自选批量表格（Sprint 3） ----------
+  async function loadWatchlistTable() {
+    const tb = document.querySelector("#watchlistTable tbody");
+    if (!tb) return;
+    try {
+      const r = await fetch("/api/watchlist");
+      const codes = await r.json();
+      const many = await (await fetch("/api/many?codes=" + codes.join(","))).json();
+      const rows = [];
+      for (const code of codes) {
+        const d = many[code] || {};
+        const q = d.quote;
+        if (!q) continue;
+        const cls = q.change_pct >= 0 ? "up" : "down";
+        rows.push(`<tr data-code="${code}">`
+          + `<td>${code.toUpperCase()}</td>`
+          + `<td>${q.name || code}</td>`
+          + `<td>${q.price.toFixed(2)}</td>`
+          + `<td class="${cls}">${(q.change_pct >= 0 ? "+" : "")}${q.change_pct.toFixed(2)}%</td>`
+          + `<td class="${cls}">${(q.change >= 0 ? "+" : "")}${q.change.toFixed(2)}</td>`
+          + `<td>${q.amount >= 1e8 ? (q.amount / 1e8).toFixed(2) + "亿" : (q.amount / 1e4).toFixed(0) + "万"}</td>`
+          + `<td>${q.turnover_pct != null ? q.turnover_pct + "%" : "--"}</td>`
+          + `</tr>`);
+      }
+      tb.innerHTML = rows.join("");
+      tb.querySelectorAll("tr").forEach(tr => {
+        tr.addEventListener("click", () => switchTo(tr.dataset.code));
+      });
+    } catch (e) {
+      tb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#f85149">批量加载失败: ${e.message}</td></tr>`;
     }
   }
 
@@ -1391,6 +1475,9 @@
     $("refreshBtn").addEventListener("click", () => loadQuote(current));
     $("klineBtn").addEventListener("click", () => switchView(_view === "kline" ? "minute" : "kline"));
     $("backBtn").addEventListener("click", () => switchView("minute"));
+    // US-006 自选批量表格
+    $("watchlistBtn").addEventListener("click", () => switchView(_view === "watchlist" ? "minute" : "watchlist"));
+    $("wlRefreshBtn").addEventListener("click", () => loadWatchlistTable());
     document.querySelectorAll(".kperiod").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".kperiod").forEach(b => b.classList.remove("active"));
@@ -1517,6 +1604,8 @@
     });
     $("ctxConfigSub").addEventListener("click", () => { hide(); openSubConfig(); });
     $("ctxConfigKlineSub").addEventListener("click", () => { hide(); openKlineSubConfig(); });
+    $("ctxFundFlow").addEventListener("click", () => { hide(); showFundFlow(); });
+    $("ctxExportCsv").addEventListener("click", () => { hide(); exportCsv(); });
     $("ctxRefresh").addEventListener("click", () => { hide(); loadQuote(current); });
   }
 
@@ -1559,11 +1648,71 @@
     $("klineSubConfigModal").classList.remove("hidden");
   }
 
+  // ---------- US-015 分钟资金流明细 modal ----------
+  function showFundFlow() {
+    const d = latestData || {};
+    const f = d.fund || [];
+    if (!f.length) { alert("暂无资金流数据"); return; }
+    const tb = $("fundFlowBody");
+    const rows = [];
+    f.forEach((x, i) => {
+      const prev = i > 0 ? f[i - 1] : null;
+      const delta = (key) => prev ? (x[key] - prev[key]) / 1e4 : 0;
+      const w = (v) => { const r = v.toFixed(0); return r >= 0 ? "+" + r : r; };
+      rows.push(`<tr><td>${normT(x.t)}</td>`
+        + `<td class="${delta("main") >= 0 ? "up" : "down"}">${w(delta("main"))}</td>`
+        + `<td class="${delta("super_big") >= 0 ? "up" : "down"}">${w(delta("super_big"))}</td>`
+        + `<td class="${delta("big") >= 0 ? "up" : "down"}">${w(delta("big"))}</td>`
+        + `<td class="${delta("mid") >= 0 ? "up" : "down"}">${w(delta("mid"))}</td>`
+        + `<td class="${delta("small") >= 0 ? "up" : "down"}">${w(delta("small"))}</td></tr>`);
+    });
+    tb.innerHTML = rows.join("");
+    $("fundFlowTitle").textContent = `分钟资金流明细 · ${current.toUpperCase()} · ${f.length} 分钟（万元，红进绿出）`;
+    $("fundFlowModal").classList.remove("hidden");
+  }
+
+  // ---------- US-012 导出 CSV（Sprint 4） ----------
+  function exportCsv() {
+    const d = latestData || {};
+    let csv = "";
+    // 分时
+    const m = d.minute || [];
+    if (m.length) {
+      csv += "=== 分时 ===\n时间,价格,均价,量(手),额(万元)\n";
+      m.forEach((x, i) => {
+        const prev = i > 0 ? m[i - 1] : null;
+        const vol = prev ? Math.max(0, x.vol - prev.vol) : x.vol;
+        const amt = prev ? Math.max(0, x.amount - prev.amount) : x.amount;
+        csv += `${x.t},${x.price},${x.avg},${vol},${(amt / 1e4).toFixed(1)}\n`;
+      });
+    }
+    // 资金流
+    const f = d.fund || [];
+    if (f.length) {
+      csv += "\n=== 资金流（元） ===\n时间,主力,超大单,大单,中单,小单\n";
+      f.forEach(x => {
+        csv += `${x.t},${x.main},${x.super_big},${x.big},${x.mid},${x.small}\n`;
+      });
+    }
+    if (!csv) { alert("暂无数据可导出"); return; }
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${current}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   // ---------- 副图配置 modal ----------
   function setupSubConfigModal() {
     $("subConfigClose").addEventListener("click", () => $("subConfigModal").classList.add("hidden"));
     $("subConfigModal").addEventListener("click", e => {
       if (e.target.id === "subConfigModal") $("subConfigModal").classList.add("hidden");
+    });
+    // 资金流明细 modal 关闭
+    $("fundFlowClose").addEventListener("click", () => $("fundFlowModal").classList.add("hidden"));
+    $("fundFlowModal").addEventListener("click", e => {
+      if (e.target.id === "fundFlowModal") $("fundFlowModal").classList.add("hidden");
     });
     // 副图个数下拉（1~5）
     const countSel = $("subConfigCount");
