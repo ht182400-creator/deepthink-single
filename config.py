@@ -14,7 +14,8 @@ SQLITE_PATH = os.path.join(DATA_DIR, "market.db")
 WATCHLIST_FILE = os.path.join(DATA_DIR, "watchlist.json")
 
 # 通达信本地数据根目录（历史日/周/月 K 权威源）
-TDX_ROOT = r"D:\new_tdx64\vipdoc"
+# 可用环境变量 TDX_ROOT 覆盖，方便换机器/部署（不再硬编码 Windows 绝对路径）
+TDX_ROOT = os.environ.get("TDX_ROOT", r"D:\new_tdx64\vipdoc")
 
 for _d in (DATA_DIR, LOG_DIR, KLINE_CACHE_DIR):
     os.makedirs(_d, exist_ok=True)
@@ -49,9 +50,11 @@ TTL_QUOTE = 10           # 报价
 TTL_MINUTE = 30          # 分时
 TTL_FUND = 60            # 主力资金
 TTL_KLINE = 3600 * 24    # K线缓存
+TTL_STATIC = 600         # 低频/静态数据（公司财务、股东、融资融券、龙虎榜等，10min）
 
 # ---------- 并发 ----------
 POOL_MAX_WORKERS = 8     # 批量聚合并发上限
+MAX_CODES = 50           # /api/many 单次批量上限（防滥用/雪崩）
 
 # ---------- 自选默认 ----------
 DEFAULT_WATCHLIST = ["sh600519", "sz000858", "sz300750", "sh601318"]
