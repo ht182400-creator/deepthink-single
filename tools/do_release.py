@@ -10,7 +10,7 @@ import urllib.request
 OWNER = "ht182400-creator"
 REPO = "deepthink-single"
 BRANCH = "main"
-TAG = "v0.0.2"
+TAG = "v0.0.4"
 ROOT = r"E:\AI_Studio\deepthinkSingle"
 EXCLUDE_DIRS = {"data", "node_modules", "__pycache__", ".git", "venv", ".venv", "logs"}
 EXCLUDE_SUFFIXES = (".pyc", ".log", ".tmp", ".db")
@@ -107,7 +107,7 @@ def create_tag(sha):
 def create_release(sha):
     status, resp = api("POST", f"/repos/{OWNER}/{REPO}/releases",
                        {"tag_name": TAG, "name": f"V{TAG[1:]}", "target_commitish": sha,
-                        "body": "自选批量表格 / 资金流明细 / 5日主力对比 / 异动告警 / CSV导出 / 右键副图配置 / 全A股拼音搜索",
+                        "body": "代码评审整改（v0.0.4）：\n- 缺陷修复 D1-D4：MACD 信号线(DEA)不渲染、窗口缩放崩溃、K线缩放监听泄漏、后端重复函数\n- 架构优化 P1/C1-C3/C5：低频数据加 TTL 缓存、TDX_ROOT 改环境变量、指数退避重试、SQLite WAL、/api/many 限流\n- UI/数据 M2/M3：副图误导性标注、搜索返回字段统一\n- 副图渲染去重 M1、前端请求超时/取消防护 P4、删除废弃模块 C4\n- 新增静态指标算法模块 indicators.js + Node 单测（5/5）",
                         "draft": False, "prerelease": False})
     if status in (201, 200):
         print(f"release V{TAG[1:]} 创建成功: {resp.get('html_url')}")
