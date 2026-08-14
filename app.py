@@ -6,7 +6,7 @@
 - GET /api/watchlist 自选列表
 - POST /api/watchlist 维护自选（add/remove/set）
 - GET /api/sysinfo  环境信息
-数据源：data_provider（腾讯首选 + 东财兜底/多节点）
+数据源：services.quote_service（腾讯首选 + 东财兜底/多节点）
 """
 import os
 import sys
@@ -167,6 +167,8 @@ def api_many():
     codes = [c.strip().lower() for c in request.args.get("codes", "").split(",") if c.strip()]
     if not codes:
         return jsonify({"error": "codes 必填，逗号分隔"}), 400
+    if len(codes) > config.MAX_CODES:
+        return jsonify({"error": f"codes 单次上限 {config.MAX_CODES}（收到 {len(codes)}）"}), 400
     return jsonify(svc.get_many(codes))
 
 
