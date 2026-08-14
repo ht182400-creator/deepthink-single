@@ -18,6 +18,11 @@ _db_lock = threading.Lock()
 def _connect():
     conn = sqlite3.connect(config.SQLITE_PATH)
     conn.row_factory = sqlite3.Row
+    # WAL：读写并发互不阻塞，避免批量写/分析日志时阻塞查询
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
