@@ -124,7 +124,7 @@ E:\AI_Studio\deepthinkSingle\
 
 ## 测试
 
-**126 个自动化测试，全部通过**（单元 + 集成，离线可跑）。
+**128 个自动化测试，全部通过**（单元 + 集成，离线可跑）。
 
 ```bash
 python -m unittest discover tests -v     # 全部测试
