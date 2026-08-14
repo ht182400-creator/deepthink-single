@@ -330,6 +330,25 @@ button.ghost { background: #30363d; }
 }
 .search-results .item:hover { background: #161b22; }
 .search-results .item .code { color: #8b949e; font-size: 11px; margin-right: 8px; }
+
+/* 自选批量表格 */
+.wl-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.wl-table th, .wl-table td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #21262d; font-variant-numeric: tabular-nums; }
+.wl-table th:first-child, .wl-table td:first-child { text-align: left; }
+.wl-table th { color: #8b949e; font-weight: 600; position: sticky; top: 0; background: #161b22; }
+.wl-table tbody tr { cursor: pointer; }
+.wl-table tbody tr:hover { background: rgba(31, 111, 235, 0.12); }
+.wl-table .up { color: #f85149; }
+.wl-table .down { color: #3fb950; }
+
+/* 资金流明细 modal */
+.fund-flow-body { width: min(680px, 94vw); height: 70vh; display: flex; flex-direction: column; }
+.fund-flow-body .wl-table { flex: 1; overflow-y: auto; display: block; }
+.fund-flow-body .wl-table thead { display: table-header-group; }
+.fund-flow-body .wl-table tbody { display: table-row-group; }
+.fund-flow-table th, .fund-flow-table td { padding: 4px 10px; font-size: 11px; }
+.fund-flow-table .up { color: #f85149; }
+.fund-flow-table .down { color: #3fb950; }
 .search-results .item .cat { color: #8957e5; font-size: 11px; float: right; }
 .empty-hint { padding: 12px; text-align: center; color: #8b949e; font-size: 12px; }
 
