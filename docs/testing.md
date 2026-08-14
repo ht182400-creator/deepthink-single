@@ -1,7 +1,7 @@
 # 测试文档（Testing）
 
 > 项目：deepthinkSingle 个股主力追踪系统
-> 更新：2026-08-14 | 测试基线：**126 tests / 126 PASS**
+> 更新：2026-08-14 | 测试基线：**128 tests / 128 PASS**
 
 ## 1. 测试策略
 
@@ -35,7 +35,7 @@ python -m unittest tests.test_cache.TestTtlCache.test_expired_returns_none
 python -m unittest discover tests -v -k TestApi   # 只跑 API 集成
 ```
 
-## 3. 测试用例库清单（14 个模块 / 126 用例）
+## 3. 测试用例库清单（14 个模块 / 128 用例）
 
 ### 3.1 稳定性组件 core/（34 例）
 
@@ -46,13 +46,13 @@ python -m unittest discover tests -v -k TestApi   # 只跑 API 集成
 | `test_cache.py` | 11 | TTL 命中/过期；**降级缓存 stale**（数据源全挂兜底）；invalidate；get_or_set 命中/未命中；FileCache 过期（mtime）、损坏 JSON 容错 |
 | `test_fallback.py` | 8 | 链顺序优先；失败切下一源；全失败抛错；未知源跳过；**熔断跳过**（OPEN 不再调用）；**熔断恢复**（reset 后半开试探）；带参数源；注册表查询 |
 
-### 3.2 数据源 sources/（38 例）
+### 3.2 数据源 sources/（40 例）
 
 | 模块 | 用例数 | 覆盖点 |
 |---|---|---|
 | `test_base.py` | 12 | `to_secid` 全市场映射（sh/sz/bj、6/9/5/0/3 开头、纯代码、带点、大小写）；`pure_code` 前缀剥离（**回归：曾不剥 sh 前缀**） |
 | `test_tencent.py` | 7 | 报价字段解析（60 字段快照：现价/开高/低/换手/外盘/内盘/PE/市值/市净率/量比/均价）；分时均价=累计额/(累计量×100)；**收盘后截断回归**；空 body/字段不足抛错；未实现方法抛错 |
-| `test_eastmoney.py` | 7 | 资金流解析 + **主力=大单+超大单自洽**；资金空抛错；报价解析；分时 trends2 解析；**多节点轮换**（push2 失败切 delay）；全节点失败抛错 |
+| `test_eastmoney.py` | 9 | 资金流解析 + **主力=大单+超大单自洽**；资金空抛错；报价解析；分时 trends2 解析；**多节点轮换**（push2 失败切 delay）；全节点失败抛错；**5日主力 f178 解析**（Sprint4）；**5日主力空/失败返回空**（前端隐藏） |
 | `test_tdx.py` | 7 | `.day` 32 字节二进制解析（日期/OHLC/量）；文件缺失返回空；**周/月聚合**（5日/22日 OHLCV 正确性）；limit；周期不支持抛错；只读 K 接口；**`tdx_last_date` 读尾部日期**（K线缓存同步） |
 | `test_npx.py` | 5 | **markdown 动态表头**（日线 close/vol vs 分钟线 last/volume）；空文本；坏行跳过；短行跳过 |
 
