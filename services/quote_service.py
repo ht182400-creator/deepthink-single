@@ -23,6 +23,13 @@ quote_cache = TtlCache(config.TTL_QUOTE)
 minute_cache = TtlCache(config.TTL_MINUTE)
 fund_cache = TtlCache(config.TTL_FUND)
 kline_cache = FileCache(config.KLINE_CACHE_DIR, config.TTL_KLINE)
+# 低频/静态数据缓存：公司财务、股东、融资融券、龙虎榜、盈利预测、净利趋势等每日级数据
+static_cache = TtlCache(config.TTL_STATIC)
+
+
+def _cached_static(key: str, fetcher):
+    """低频数据走 static_cache（默认 10min TTL），降低 30s 轮询带来的外网请求压力。"""
+    return static_cache.get_or_set(key, fetcher)[0]
 
 _orch = fb.orchestrator()
 
@@ -67,13 +74,6 @@ _PERIOD_TYPE = {
     "day": "day", "week": "day", "month": "day",
     "m1": "min", "m5": "min", "m15": "min", "m30": "min", "m60": "min",
 }
-
-
-def _slice(rows: list, limit: int) -> list:
-    """limit<=0 表示返回全部（日线本地数据有多少显示多少）；>0 截最近 N 条。"""
-    if rows and limit and limit > 0:
-        return rows[-limit:]
-    return rows
 
 
 def _slice(rows: list, limit: int) -> list:
@@ -184,55 +184,55 @@ def get_all(code: str) -> dict:
         result["fund"] = get_fund_flow(code)
     except Exception as e:
         result["errors"].append(f"fund: {e}")
-    # 右侧"行情"小卡：基于日 K 计算 60/360/今年涨幅 + 一年最高最低
+    # 右侧"行情"小卡：基于日 K 计算 60/360/今年涨幅 + 一年最高最低（依赖 kline_cache，再走静态缓存）
     try:
-        result["stats"] = _compute_period_stats(code)
+        result["stats"] = _cached_static(f"stats:{code}", lambda: _compute_period_stats(code))
     except Exception as e:
         result["errors"].append(f"stats: {e}")
-    # 公司综合：公告 / 财务 / 股东户数（独立子查询，单个失败不影响其他）
+    # 公司综合：公告 / 财务 / 股东户数（低频，走 static_cache 10min TTL）
     try:
         from sources.company import get_announcements, get_finance_summary, get_holder_num
-        result["announcements"] = get_announcements(code, limit=10)
+        result["announcements"] = _cached_static(f"ann:{code}", lambda: get_announcements(code, limit=10))
     except Exception as e:
         result["errors"].append(f"announcements: {e}")
     try:
-        result["finance"] = get_finance_summary(code)
+        result["finance"] = _cached_static(f"finance:{code}", lambda: get_finance_summary(code))
     except Exception as e:
         result["errors"].append(f"finance: {e}")
     try:
-        result["holders"] = get_holder_num(code, limit=4)
+        result["holders"] = _cached_static(f"holders:{code}", lambda: get_holder_num(code, limit=4))
     except Exception as e:
         result["errors"].append(f"holders: {e}")
-    # 综合数据扩展：融资融券 / 龙虎榜 / 公司信息 / 盈利预测 / 净利趋势（独立子查询）
+    # 综合数据扩展：融资融券 / 龙虎榜 / 公司信息 / 盈利预测 / 净利趋势（低频）
     try:
         from sources.company import get_margin, get_lhb, get_company_profile, get_forecast, get_profit_trend
-        result["margin"] = get_margin(code, limit=2)
+        result["margin"] = _cached_static(f"margin:{code}", lambda: get_margin(code, limit=2))
     except Exception as e:
         result["errors"].append(f"margin: {e}")
     try:
-        result["lhb"] = get_lhb(code, limit=3)
+        result["lhb"] = _cached_static(f"lhb:{code}", lambda: get_lhb(code, limit=3))
     except Exception as e:
         result["errors"].append(f"lhb: {e}")
     try:
-        result["company"] = get_company_profile(code)
+        result["company"] = _cached_static(f"company:{code}", lambda: get_company_profile(code))
     except Exception as e:
         result["errors"].append(f"company: {e}")
     try:
-        result["forecast"] = get_forecast(code)
+        result["forecast"] = _cached_static(f"forecast:{code}", lambda: get_forecast(code))
     except Exception as e:
         result["errors"].append(f"forecast: {e}")
     try:
-        result["profit_trend"] = get_profit_trend(code, years=4)
+        result["profit_trend"] = _cached_static(f"profit:{code}", lambda: get_profit_trend(code, years=4))
     except Exception as e:
         result["errors"].append(f"profit_trend: {e}")
-    # 多空情绪：主力资金当日多空占比（基于已拉的 fund 分钟数据，作为舆情近似）
+    # 多空情绪：主力资金当日多空占比（基于已拉的 fund 分钟数据，作为舆情近似，实时不缓存）
     try:
         result["sentiment"] = _compute_sentiment(result.get("fund") or [])
     except Exception as e:
         result["errors"].append(f"sentiment: {e}")
-    # Sprint 4 US-009：近 5 日主力净流入（东财 f178）
+    # Sprint 4 US-009：近 5 日主力净流入（东财 f178，低频）
     try:
-        result["day_fund_5d"] = EastmoneySource().get_5d_fund_flow(code)
+        result["day_fund_5d"] = _cached_static(f"day5d:{code}", lambda: EastmoneySource().get_5d_fund_flow(code))
     except Exception as e:
         result["errors"].append(f"day_fund_5d: {e}")
     return result
