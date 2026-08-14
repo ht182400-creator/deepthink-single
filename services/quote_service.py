@@ -230,6 +230,11 @@ def get_all(code: str) -> dict:
         result["sentiment"] = _compute_sentiment(result.get("fund") or [])
     except Exception as e:
         result["errors"].append(f"sentiment: {e}")
+    # Sprint 4 US-009：近 5 日主力净流入（东财 f178）
+    try:
+        result["day_fund_5d"] = EastmoneySource().get_5d_fund_flow(code)
+    except Exception as e:
+        result["errors"].append(f"day_fund_5d: {e}")
     return result
 
 
