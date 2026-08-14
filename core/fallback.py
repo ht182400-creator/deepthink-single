@@ -7,6 +7,7 @@ import logging
 import threading
 import time
 
+import config
 from core.circuit_breaker import CircuitBreaker
 
 LOG = logging.getLogger("deepthink")
@@ -33,19 +34,26 @@ class FallbackOrchestrator:
         return self._sources.get(name)
 
     def _call_one(self, name: str, method: str, *args, **kwargs):
-        """调用单个源（带熔断）。成功返回 (True, result)；失败返回 (False, err)"""
+        """调用单个源（带熔断 + 指数退避重试）。成功返回 (True, result)；失败返回 (False, err)"""
         brk = self._breakers[name]
         if not brk.allow():
             return False, RuntimeError(f"熔断: {name}")
-        try:
-            src = self._sources[name]
-            result = getattr(src, method)(*args, **kwargs)
-            brk.record_success()
-            return True, result
-        except Exception as e:
-            brk.record_failure()
-            LOG.warning("source[%s].%s 失败: %s", name, method, e)
-            return False, e
+        last_err = None
+        for attempt in range(max(1, config.RETRY_MAX)):
+            try:
+                src = self._sources[name]
+                result = getattr(src, method)(*args, **kwargs)
+                brk.record_success()
+                return True, result
+            except Exception as e:
+                last_err = e
+                # 还有重试机会 → 退避后重试（单次逻辑失败，不计入熔断，避免放大抖动）
+                if attempt < config.RETRY_MAX - 1:
+                    backoff = config.RETRY_BACKOFF[attempt] if attempt < len(config.RETRY_BACKOFF) else config.RETRY_BACKOFF[-1]
+                    time.sleep(backoff)
+        brk.record_failure()
+        LOG.warning("source[%s].%s 失败(重试%d次): %s", name, method, config.RETRY_MAX, last_err)
+        return False, last_err
 
     def fallback(self, chain: list, method: str, *args, **kwargs):
         """按优先级链尝试，返回 (result, used_source_name)。全失败抛 RuntimeError。
