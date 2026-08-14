@@ -43,8 +43,11 @@
 - R-U7 If 通达信本地 .day 文件缺失或损坏，then the system shall 静默降级到 npx/东财，不影响页面。
 
 ### Optional（可选）
-- R-O1 Where 用户维护了自选列表，the system shall 支持批量刷新并显示涨跌幅摘要（Sprint 3）。
-- R-O2 Where 用户需要，the system shall 提供分时明细表（逐分钟价格/均价/量/主力净额）（Sprint 3）。
+- R-O1 Where 用户维护了自选列表，the system shall 支持批量刷新并显示涨跌幅摘要（Sprint 3）。✅
+- R-O2 Where 用户需要，the system shall 提供分时明细表（逐分钟价格/均价/量/主力净额）（Sprint 3）。✅
+- R-O3 Where 用户需要，the system shall 提供近 N 日主力净流入柱状对比，以便判断资金趋势（Sprint 4）。✅
+- R-O4 Where 主力净流入短时间大幅异动，the system shall 高亮提示（Sprint 4）。✅
+- R-O5 Where 用户需要，the system shall 导出分时/资金/K线数据为 CSV（Sprint 4）。✅
 
 ## 4. 界面说明
 
@@ -97,7 +100,7 @@
 | 主力资金 | 东财 fflow/kline/get (push2) | 东财 push2delay | 腾讯公开接口无 |
 | 日/周/月 K | **通达信本地 .day** | npx → 东财 | 0.01s，含全历史 |
 | 分钟 K | npx westock（+本地缓存） | 东财 kline | 首次 2s，缓存后秒开 |
-| 搜索 | 预置池（120+ 标的） | 在线搜索（Sprint 3） | 代码/名称/行业匹配 |
+| 搜索 | ✅ 全 A 股 5549+ 本地 JSON + 拼音（stock_list.py） | — | 代码/名称/拼音首字母 |
 
 输出统一 JSON：`{ code, name, price, pre_close, minute: [{t, price, avg, vol}], fund: [{t, main}], errors: [] }`
 
@@ -128,5 +131,5 @@
 - R-E13 When 用户在分时视图按方向键 ↑/↓，the system shall 切换选中分钟并在右侧列表高亮该分钟详情（时间/价格/每分成交量/每分成交额）。
 - R-E14 When 分时视图渲染 VOLFS，the system shall 按该分钟价格涨跌方向染色（A 股惯例：红涨绿跌），而非按主力资金流方向。
 - R-E15 When 五档盘口信息卡渲染，the system shall 展示 16 项指标（现价/今开/涨跌/最高/涨幅/最低/总手/量比/外盘/内盘/换手/股本/净资/流通/收益/PE），时间戳格式 HH:MM:SS。
-- R-E16 When 用户点击顶部自选下拉，the system shall 展示 115+ 可选标的（自选 ★ + 全部预置池），支持输入模糊搜索。
+- R-E16 When 用户点击顶部自选下拉，the system shall 展示 5549+ 可选标的（全 A 股 + 拼音首字母），支持输入模糊搜索。
 - R-E17 When 分时视图渲染，the system shall 左侧栏底部展示"市场综合"面板（行情+估值+市值+财务+年度净利柱状图+股东户数+融资融券+龙虎榜+公司信息+盈利预测+主力多空+公告），各组紧凑排列，数据源失败该组隐藏。
