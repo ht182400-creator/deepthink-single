@@ -74,6 +74,31 @@ class EastmoneySource(Source):
             out.append({"date": c[0][:10], "main": float(c[3])})  # c[3]=f53 主力
         return out
 
+    def get_5d_fund_flow(self, code: str) -> list:
+        """近 5 日主力净流入（东财 push2delay quote f178，JSON 字符串）。
+        f178 = '[{"date":"...","mainNetAmt":...}, ...]'（旧→新 5 天）"""
+        import json as _json
+        secid = to_secid(code)
+        last_err = None
+        for host in HOSTS:
+            try:
+                j = http_get(f"https://{host}/api/qt/stock/get",
+                             {"Referer": "https://quote.eastmoney.com/", "User-Agent": config.USER_AGENT},
+                             params={"secid": secid, "fields": "f178"},
+                             limiter_name="eastmoney", rate=config.RATE_LIMIT_EM).json()
+                raw = (j.get("data") or {}).get("f178") or ""
+                if isinstance(raw, str):
+                    raw = _json.loads(raw) if raw.startswith("[") else []
+                out = []
+                for it in raw:
+                    if isinstance(it, dict) and it.get("date") and it.get("mainNetAmt") is not None:
+                        out.append({"date": it["date"], "main": it["mainNetAmt"]})
+                # 无数据不算失败（正常场景：非两融/停牌等），返回空
+                return out
+            except Exception as e:
+                last_err = e
+        raise RuntimeError(f"东财 5 日资金流全失败: {last_err}")
+
     def get_quote(self, code: str) -> dict:
         secid = to_secid(code)
         j = _get_with_fallback("/api/qt/stock/get", {
