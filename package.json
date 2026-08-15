@@ -1,0 +1,16 @@
+{
+  "name": "deepthink-single",
+  "version": "0.0.5",
+  "private": true,
+  "description": "个股主力追踪 - 前端功能冒烟测试依赖",
+  "scripts": {
+    "test": "node --test tests/js/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  },
+  "dependencies": {
+    "echarts": "^6.1.0",
+    "puppeteer-core": "^25.7.0"
+  }
+}
