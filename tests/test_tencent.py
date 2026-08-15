@@ -51,11 +51,12 @@ class TestTencent(unittest.TestCase):
             src.get_quote("sh600519")
 
     def test_minute_parse(self):
+        # 腾讯 ifzq 返回的是累计成交量（手）/累计成交额（元）；后端差分为每分钟成交量（手）并计算均价
         body = {
             "code": 0,
             "data": {"sh600519": {"data": {"data": [
-                "0930 1342.00 100 50000",
-                "0931 1343.50 200 60000",
+                "0930 1342.00 1 134200.00",   # 1手=100股，金额=1342*100=134200
+                "0931 1343.50 3 403050.00",   # 3手，金额=1343.5*300=403050
             ]}}},
         }
         src = self._src(FakeResponse(json_data=body))
@@ -63,9 +64,13 @@ class TestTencent(unittest.TestCase):
         self.assertEqual(len(m), 2)
         self.assertEqual(m[0]["t"], "0930")
         self.assertEqual(m[0]["price"], 1342.00)
-        self.assertEqual(m[0]["vol"], 100)
-        # 均价 = 累计额 / 累计量（手→股：1手=100股）
-        self.assertEqual(m[1]["avg"], round((50000 + 60000) / (300 * 100), 3))
+        self.assertEqual(m[0]["vol"], 1)            # 每分钟成交量（手）
+        self.assertEqual(m[0]["amount"], 134200.00) # 每分钟成交额（元）
+        self.assertEqual(m[0]["avg"], 1342.00)     # 累计额 / (累计手数 * 100)
+        self.assertEqual(m[1]["t"], "0931")
+        self.assertEqual(m[1]["vol"], 2)            # 3 - 1（手）
+        self.assertEqual(m[1]["amount"], 268850.00) # 403050 - 134200
+        self.assertEqual(m[1]["avg"], 1343.50)      # 403050 / (3 * 100)
 
     def test_minute_empty_raises(self):
         src = self._src(FakeResponse(json_data={"code": 0, "data": {"sh600519": {}}}))
@@ -77,12 +82,12 @@ class TestTencent(unittest.TestCase):
         body = {
             "code": 0,
             "data": {"sh600519": {"data": {"data": [
-                "1455 1342.00 100 50000",
-                "1456 1343.50 200 60000",   # 价变
-                "1457 1344.00 250 67000",   # 价变
-                "1500 1344.00 260 69000",   # 价不变（最后1分钟收盘）
-                "1506 1344.00 261 69100",   # 价不变 + vol 伪累加（应截断）
-                "1530 1344.00 262 69200",   # 价不变 + vol 伪累加（应截断）
+                "1455 1342.00 1 134200",    # 价变
+                "1456 1343.50 2 268700",    # 价变
+                "1457 1344.00 3 403200",    # 价变
+                "1500 1344.00 4 537600",    # 价不变（最后1分钟收盘）
+                "1506 1344.00 5 672000",    # 价不变 + vol 伪累加（应截断）
+                "1530 1344.00 6 806400",    # 价不变 + vol 伪累加（应截断）
             ]}}},
         }
         src = self._src(FakeResponse(json_data=body))
@@ -91,6 +96,8 @@ class TestTencent(unittest.TestCase):
         self.assertEqual(len(m), 3)
         self.assertEqual(m[-1]["t"], "1457")
         self.assertEqual(m[-1]["price"], 1344.00)
+        self.assertEqual(m[-1]["vol"], 1)          # 3 - 2（手）
+        self.assertEqual(m[-1]["amount"], 134500.00) # 403200 - 268700
 
     def test_unsupported_methods_raise(self):
         from sources.tencent import TencentSource
