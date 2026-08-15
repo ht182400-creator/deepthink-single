@@ -1,7 +1,7 @@
 # 需求池（Product Backlog）
 
 > 敏捷需求池。优先级 P0（本 Sprint 必须）/ P1（重要）/ P2（可选）。故事点 S/M/L。
-> 更新：2026-08-14 Sprint 2/3/4 完成项已勾选；新增「代码评审整改」小节（US-054~US-068）；**v0.0.4 已发布**（代码评审整改，见 §7 + 下方「版本发布记录」）。
+> 更新：2026-08-15 Sprint 2/3/4 完成项已勾选；新增「代码评审整改」小节（US-054~US-068）；**v0.0.4 / v0.0.5 已发布**（v0.0.4 代码评审整改、v0.0.5 历史分时/日K 渲染与数据源校验 + 缺陷 #14–#24，见 §7 + 下方「版本发布记录」）。
 
 ## P0 - 核心（Sprint 1）✅ 已完成
 
@@ -76,7 +76,7 @@
 | US-065 | M1 副图渲染样板抽取 | 12 个副图渲染函数 ~90% 重复样板，抽数据驱动 `buildSubOption` | ✅ 2026-08-14（骨架+delta 助手，12 个副图函数全收敛） |
 | US-066 | C4 删除 deprecated data_provider | 仅自检引用，无业务依赖，可后续清理 | ✅ 2026-08-14（已删 + app.py 注释更新） |
 | US-067 | P4 前端 AbortController 超时 | 与 US-025 同源，K线 fetch 悬挂防护 | ✅ 2026-08-14（`_fetchAbortable` 自动取消+超时，quote/kline 已接入） |
-| US-068 | §5-2/3 测试深化 | jsdom 冒烟 + 后端 mock 化（CI 建设项） | ⏳ 暂缓 |
+| US-068 | §5-2/3 测试深化 | jsdom 冒烟 + 后端 mock 化（CI 建设项） | ✅ 2026-08-14（US-071/072 已落地：jsdom 真·页面功能测试 6 交互用例 + C2 重试确定性测试） |
 
 | US-033 | 分笔明细 + 分价表 | 通达信红框右侧内容：需 Level2 逐笔数据（免费源不稳定），当前仅五档盘口 | P3 技术债 |
 | US-034 | K线信息卡增强 | 已实现：hover 显示 开盘/收盘/最低/最高/昨收/涨幅/振幅/成交额 | ✅ Sprint 2 |
@@ -108,6 +108,49 @@
 | US-052 | 分析师预测评级 | 东财 RPT_WEB_RESPREDICT | P3 | ✅ Sprint 2 |
 | US-053 | 分笔明细+分价表（Level2） | 需 Level2 逐笔数据 | P3 | backlog |
 
+## 下一轮优化（v0.0.5 候选，2026-08-14 起）
+
+> 来源：评审 §7.7 暂缓项 + backlog P3 技术债未做项。优先级与工作量供排期参考；实现前逐条与用户确认范围，避免过度重构。
+> **2026-08-14 已全部实现（本地，待发布）**：A 前端去重（US-069）、B 测试深化（US-071/072）、C UI 细节（US-029/030/031/032）、D 复盘记录（US-017）。每类均按评审/全栈/UI 视角落地并通过 `node --check` + `node --test` + Python 单测把关。
+> **附带修复 v0.0.4 回归**：`app.py` 的 `/api/many` 使用了 `config.MAX_CODES` 却从未 `import config`，导致批量接口（自选批量表格）必然 500；本轮补 `import config`（测试 `test_many` 捕获）。提示：`py_compile` 抓不到未定义名，运行时测试才能发现。
+
+### A. 前端去重 / 重构
+
+| ID | 项 | 说明 | 风险 | 工作量 | 状态 |
+|---|---|---|---|---|---|
+| US-069 | K线指标渲染去重 | MACD/KDJ/BOLL/RSI 四个渲染函数 ~90 行样板（grid/tooltip/xAxis/dataZoom/yAxis 几乎一致），抽 `buildKlineSubOption` 数据驱动骨架（复用 M1 思路，保留零轴/参考线/多周期 RSI 视觉） | 中 | L | ✅ 2026-08-14 |
+| US-070 | 全局变量收敛（M4） | `window._minuteTimes` / `window._histChart` 等松散挂全局，收敛到模块命名空间 | 低 | M | ✅ 2026-08-14 |
+
+### B. 前端健壮性测试（评审 §5-2/3）
+
+| ID | 项 | 说明 | 风险 | 工作量 | 状态 |
+|---|---|---|---|---|---|
+| US-071 | jsdom 前端功能冒烟 | `tests/js/dom-smoke.test.js`：**已安装 jsdom 依赖、恒跑**；加载真实 `index.html` + mock echarts/fetch，断言启动不崩、复盘 modal 开-关、搜索下拉+键盘导航+Enter 切换、自选删除、空数据占位；源码级 D2/D3/M1 回归守护 | 低 | M | ✅ 2026-08-14 |
+| US-072 | 后端 mock 化 | 为 `quote_service` 等加 `responses` / `requests_mock` fixture，提升 CI 稳定性 | 低 | M | ✅ 2026-08-14 |
+
+### C. UI 细节（ui-review 未修项）
+
+| ID | 项 | 说明 | 风险 | 工作量 | 状态 |
+|---|---|---|---|---|---|
+| US-029 | 搜索下拉键盘导航 | ↑↓ 选择 + Enter 确认（当前仅 Enter 选第一条 / firstOption） | 低 | S | ✅ 2026-08-14 |
+| US-030 | 三面板占位文案 | 无数据时显示「暂无分时数据」等占位，而非空图 | 低 | S | ✅ 2026-08-14 |
+| US-031 | 移动端自适应 | 图表高度按视口自适应（当前固定高度） | 低 | S | ✅ 2026-08-14 |
+| US-032 | 自选删除按钮 | 下拉选中标的可点「-」移除（当前仅靠 API） | 低 | S | ✅ 2026-08-14 |
+
+### D. 功能增强
+
+| ID | 项 | 说明 | 风险 | 工作量 | 状态 |
+|---|---|---|---|---|---|
+| US-017 | 复盘记录 | `analysis_log` 写本地 SQLite（前置 US-026 WAL 已完成） | 低 | M | ✅ 2026-08-14 |
+| US-027 | 东财 K线适配器 | HTTP 接口不稳，实现后加回降级链 | 中 | L | ✅ 2026-08-14 |
+| US-028 | 覆盖率门禁 | core≥90% 进 CI（需 `coverage` + CI 配置） | 低 | M | ✅ 2026-08-14 |
+
+### 本轮明确暂缓（不纳入 v0.0.5）
+
+- **P2** 指标随 K线缓存一次算好（微优化，长周期再处理）。
+- **M5** `renderMarketPanel` 增量更新（非首屏高频，innerHTML 重建功能正确）。
+- **US-033** 分笔明细 + 分价表（需 Level2 逐笔数据，免费源不稳定）。
+
 ## 版本发布记录
 
 | 版本 | 日期 | 说明 | 链接 |
@@ -116,3 +159,4 @@
 | v0.0.2 | 2026-08-13 | Sprint 3/4 功能（批量表格/资金流明细/5日主力/异动告警/CSV导出/右键副图配置/全A股搜索） | [release](https://github.com/ht182400-creator/deepthink-single/releases/tag/v0.0.2) |
 | v0.0.3 | 2026-08-13 | 文档全量更新 + 评审缺陷初修 | [release](https://github.com/ht182400-creator/deepthink-single/releases/tag/v0.0.3) |
 | v0.0.4 | 2026-08-14 | 代码评审整改：D1-D4/P1/C1-C5/M2/M3/M1/P4/C4（MACD 修复、resize/zoom 修复、低频缓存、重试、WAL、副图去重、请求超时防护、删废弃模块）+ 前端指标单测 | [release](https://github.com/ht182400-creator/deepthink-single/releases/tag/v0.0.4) |
+| v0.0.5 | 2026-08-15 | **历史分时 / 日K 渲染与数据源校验（缺陷 #14–#24）+ 评审后续优化**：#14 历史分时白图(弹窗销毁重建 echarts 实例 + reflow + resize + try/catch)；#16 分钟K全量被后端 2000 上限截断；#17 K线失败 UX(charts.p4.clear)；#18 分钟K陈旧缓存(get_kline 过期检查扩展到 day/min) + puppeteer-core 真实浏览器 E2E 守护；#19 腾讯分时累计量山形 + 均价100倍(cum_vol 单位为手)；#20 日线 tooltip 把 dataIndex 当开盘价(改用 list[i])；#21 历史分时本地滞后标注来源(meta 信封)；#22 在线源忽略远日期参数致走势重合(日线 OHLC 交叉校验拦截)；#23 批量表格把对象 join 成 `[object Object]`；#24 批量表格整池超 `MAX_CODES=50`(改为只拉自选)。配套：US-017 复盘记录 / US-029-032 UI 细节 / US-069 K线去重 / US-071 jsdom 冒烟 / US-072 重试测试；后端补 `import config` 修复 `/api/many` 500 回归；60 分K 卡 loading 修复；新增 `test_tdx_minute.py` + `tests/e2e_kline.js`。测试基线：Python 143 / 前端 17 全 PASS。 | [release](https://github.com/ht182400-creator/deepthink-single/releases/tag/v0.0.5) |
