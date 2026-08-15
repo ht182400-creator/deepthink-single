@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """降级编排器单元测试：链顺序 / 熔断跳过 / 带参数源 / 全失败。"""
+import time
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import config
 from core.circuit_breaker import CircuitBreaker
 from core.fallback import FallbackOrchestrator
 
@@ -103,6 +105,44 @@ class TestFallbackOrchestrator(unittest.TestCase):
         self.orch.register("a", a)
         self.assertIs(self.orch.get_source("a"), a)
         self.assertIsNone(self.orch.get_source("nope"))
+
+
+class TestRetryBackoff(unittest.TestCase):
+    """US-072 / C2：_call_one 指数退避重试应真正重试（而非死配置）。"""
+
+    def setUp(self):
+        self.orch = FallbackOrchestrator()
+
+    def test_retry_until_success(self):
+        """前两次抛错、第三次成功 → 应返回成功，且调用次数 = RETRY_MAX。"""
+        class Flaky:
+            def __init__(self): self.n = 0
+            def get_quote(self, code):
+                self.n += 1
+                if self.n < config.RETRY_MAX:
+                    raise RuntimeError("transient")
+                return {"ok": True}
+        src = Flaky()
+        self.orch.register("flaky", src)
+        with patch("core.fallback.time.sleep"):   # 跳过真实退避等待
+            ok, res = self.orch._call_one("flaky", "get_quote", "x")
+        self.assertTrue(ok)
+        self.assertEqual(res, {"ok": True})
+        self.assertEqual(src.n, config.RETRY_MAX)
+
+    def test_retry_exhausted_then_failure(self):
+        """始终失败 → 重试到上限后返回 False，不无限重试。"""
+        class AlwaysFail:
+            def __init__(self): self.n = 0
+            def get_quote(self, code):
+                self.n += 1
+                raise RuntimeError("boom")
+        src = AlwaysFail()
+        self.orch.register("bad", src)
+        with patch("core.fallback.time.sleep"):
+            ok, err = self.orch._call_one("bad", "get_quote", "x")
+        self.assertFalse(ok)
+        self.assertEqual(src.n, config.RETRY_MAX)
 
 
 if __name__ == "__main__":
