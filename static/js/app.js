@@ -164,21 +164,16 @@
     const dates = list.map(x => x.date);
     const closes = list.map(x => x.close);
     const { dif, dea, macd } = _macd(closes);
-    c.setOption({
-      backgroundColor: DARK.bg,
-      tooltip: { trigger: "axis", confine: true },
-      grid: { left: 56, right: 20, top: 8, bottom: 18 },
-      dataZoom: [{ type: "inside", xAxisIndex: 0, zoomLock: true }],
-      xAxis: { type: "category", data: dates, axisLabel: { show: false }, splitLine: { show: false } },
-      yAxis: { scale: true, splitNumber: 2,
-        axisLabel: { color: DARK.label, fontSize: 10 }, splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildKlineSubOption({
+      dates,
+      yAxis: { splitNumber: 2 },
       series: [
         { name: "DIF", type: "line", data: dif, showSymbol: false, lineStyle: { width: 1, color: "#ffd700" }, itemStyle: { color: "#ffd700" } },
         { name: "DEA", type: "line", data: dea, showSymbol: false, lineStyle: { width: 1, color: "#a371f7" }, itemStyle: { color: "#a371f7" } },
         { name: "MACD", type: "bar", data: macd, barWidth: "60%",
           itemStyle: { color: (p) => p.data >= 0 ? DARK.up : DARK.down } },
       ],
-    });
+    }));
     c.resize();
   }
   function renderKdj(list, idx) {
@@ -186,16 +181,10 @@
     const dates = list.map(x => x.date);
     const highs = list.map(x => x.high), lows = list.map(x => x.low), closes = list.map(x => x.close);
     const { k, d, j } = _kdj(highs, lows, closes);
-    c.setOption({
-      backgroundColor: DARK.bg,
-      tooltip: { trigger: "axis", confine: true },
-      grid: { left: 56, right: 20, top: 8, bottom: 18 },
-      dataZoom: [{ type: "inside", xAxisIndex: 0, zoomLock: true }],
-      xAxis: { type: "category", data: dates, axisLabel: { show: false }, splitLine: { show: false } },
+    c.setOption(buildKlineSubOption({
+      dates,
       // J = 3K - 2D 可超出 0~100，用 scale 自适应；保留 20/50/80 三条参考线（超买超卖区）
-      yAxis: { scale: true, splitNumber: 4,
-        axisLabel: { color: DARK.label, fontSize: 10 }, splitLine: { lineStyle: { color: "#1b222c" } },
-        minInterval: 10 },
+      yAxis: { splitNumber: 4, minInterval: 10 },
       series: [
         { name: "_ref20", type: "line", data: dates.map(() => 20), showSymbol: false,
           lineStyle: { width: 0.5, color: "#6e7681", type: "dashed" }, itemStyle: { color: "#6e7681" },
@@ -207,7 +196,7 @@
         { name: "D", type: "line", data: d, showSymbol: false, lineStyle: { width: 1, color: "#a371f7" }, itemStyle: { color: "#a371f7" } },
         { name: "J", type: "line", data: j, showSymbol: false, lineStyle: { width: 1, color: "#58a6ff" }, itemStyle: { color: "#58a6ff" } },
       ],
-    });
+    }));
     c.resize();
   }
   function renderBoll(list, idx) {
@@ -215,20 +204,14 @@
     const dates = list.map(x => x.date);
     const closes = list.map(x => x.close);
     const { mid, upper, lower } = _boll(closes);
-    c.setOption({
-      backgroundColor: DARK.bg,
-      tooltip: { trigger: "axis", confine: true },
-      grid: { left: 56, right: 20, top: 8, bottom: 18 },
-      dataZoom: [{ type: "inside", xAxisIndex: 0, zoomLock: true }],
-      xAxis: { type: "category", data: dates, axisLabel: { show: false }, splitLine: { show: false } },
-      yAxis: { scale: true, splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10 }, splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildKlineSubOption({
+      dates,
       series: [
         { name: "中轨", type: "line", data: mid, showSymbol: false, lineStyle: { width: 1, color: "#ffd700" }, itemStyle: { color: "#ffd700" } },
         { name: "上轨", type: "line", data: upper, showSymbol: false, lineStyle: { width: 1, color: "#58a6ff" }, itemStyle: { color: "#58a6ff" } },
         { name: "下轨", type: "line", data: lower, showSymbol: false, lineStyle: { width: 1, color: "#f85149" }, itemStyle: { color: "#f85149" } },
       ],
-    });
+    }));
     c.resize();
   }
   function renderRsi(list, idx) {
@@ -238,20 +221,15 @@
     const r6 = _rsi(closes, 6);
     const r12 = _rsi(closes, 12);
     const r24 = _rsi(closes, 24);
-    c.setOption({
-      backgroundColor: DARK.bg,
-      tooltip: { trigger: "axis", confine: true },
-      grid: { left: 56, right: 20, top: 8, bottom: 18 },
-      dataZoom: [{ type: "inside", xAxisIndex: 0, zoomLock: true }],
-      xAxis: { type: "category", data: dates, axisLabel: { show: false }, splitLine: { show: false } },
-      yAxis: { min: 0, max: 100, splitNumber: 3,
-        axisLabel: { color: DARK.label, fontSize: 10 }, splitLine: { lineStyle: { color: "#1b222c" } } },
+    c.setOption(buildKlineSubOption({
+      dates,
+      yAxis: { min: 0, max: 100, splitNumber: 3 },
       series: [
         { name: "RSI6",  type: "line", data: r6,  showSymbol: false, lineStyle: { width: 1, color: "#ffd700" }, itemStyle: { color: "#ffd700" } },
         { name: "RSI12", type: "line", data: r12, showSymbol: false, lineStyle: { width: 1, color: "#a371f7" }, itemStyle: { color: "#a371f7" } },
         { name: "RSI24", type: "line", data: r24, showSymbol: false, lineStyle: { width: 1, color: "#58a6ff" }, itemStyle: { color: "#58a6ff" } },
       ],
-    });
+    }));
     c.resize();
   }
 
@@ -621,7 +599,9 @@
   // ---------- ① 分时（左轴价格 + 右轴涨跌幅%，对齐同花顺/东财通用样式） ----------
   function renderMinute(d) {
     const m = d.minute || [];
-    if (!m.length) return;
+    const empty = $("p1Empty");
+    if (!m.length) { if (empty) empty.classList.remove("hidden"); return; }
+    if (empty) empty.classList.add("hidden");
     const times = m.map(x => normT(x.t));
     const prices = m.map(x => x.price);
     const avgs = m.map(x => x.avg);
@@ -693,6 +673,22 @@
     if (cfg.legend) opt.legend = cfg.legend;
     return opt;
   }
+  // K线技术指标副图通用骨架（US-069：消除 MACD/KDJ/BOLL/RSI 重复的
+  // backgroundColor/grid/tooltip/dataZoom/xAxis/yAxis 样板）。cfg: { dates, yAxis, series }
+  function buildKlineSubOption(cfg) {
+    return {
+      backgroundColor: DARK.bg,
+      tooltip: { trigger: "axis", confine: true },
+      grid: { left: 56, right: 20, top: 8, bottom: 18 },
+      dataZoom: [{ type: "inside", xAxisIndex: 0, zoomLock: true }],
+      xAxis: { type: "category", data: cfg.dates, axisLabel: { show: false }, splitLine: { show: false } },
+      yAxis: Object.assign({
+        scale: true, splitNumber: 3,
+        axisLabel: { color: DARK.label, fontSize: 10 }, splitLine: { lineStyle: { color: "#1b222c" } },
+      }, cfg.yAxis || {}),
+      series: cfg.series,
+    };
+  }
 
   // ---------- ② VOLFS（每分钟成交量，按价格涨跌方向染色：红涨绿跌对齐通达信/A 股惯例） ----------
   function renderVolfs(d, idx = 0) {
@@ -701,8 +697,8 @@
     const m = d.minute || [];
     if (!m.length) return;
     const rawT = m.map(x => x.t);
-    // 腾讯 ifzq 分时 vol 是累计值（手），VOLFS 标准是每分钟成交量 → 差分
-    const vols = m.map((x, i) => i === 0 ? x.vol : Math.max(0, x.vol - m[i - 1].vol));
+    // 后端统一返回每分钟成交量（手）；VOLFS 直接显示为"手"
+    const vols = m.map(x => x.vol);
     // 染色：price 上涨 → 红（A 股惯例），price 下跌 → 绿，首根灰色
     let colors = [];
     for (let i = 0; i < vols.length; i++) {
@@ -1003,21 +999,37 @@
     $("klineTitle").textContent = "加载中…";
     charts.p4.showLoading();
     try {
-      // 分钟 K 数据稀疏时自动 fallback：m60→m30→m15→m5→day，直到数据≥10 根
-      const fallbackChain = { m60: "m30", m30: "m15", m15: "m5", m5: "day" };
-      let p = period, list = null;
+      // 现在分钟 K 优先走通达信本地 .lc1（全量历史，跨交易日完整序列），
+      // 各周期(m5/m15/m30/m60)由 1 分钟线聚合，数据量充足，非空即有效。
+      // 仅当某周期完全无数据时在分钟内逐级降级；不回退到日线（避免把日线当日当成分时）。
+      const fallbackChain = { m60: "m30", m30: "m15", m15: "m5", m5: null };
+      let p = period, list = null, lastErr = null;
       while (p) {
         const all = (p === "day" || p === "week" || p === "month");
-        const limit = all ? 0 : 260;
-        const r = await _fetchAbortable("kline", "/api/kline?code=" + encodeURIComponent(current) + "&period=" + p + "&limit=" + limit, 60000);
-        const data = await r.json();
+        const limit = 0;  // 日线/分钟 K 均拉全量历史（通达信本地有多少取多少）
+        let data;
+        try {
+          const r = await _fetchAbortable("kline", "/api/kline?code=" + encodeURIComponent(current) + "&period=" + p + "&limit=" + limit, 60000);
+          data = await r.json();
+        } catch (err) {
+          lastErr = err;
+          data = null;
+        }
         if (seq !== _klineSeq) return;
-        if (Array.isArray(data) && data.length >= 10) { list = data; break; }
-        // 日/周/月数据量天然充足（≥几百），不需再 fallback
-        if (p === "day" || p === "week" || p === "month") { list = data || []; break; }
+        // 后端异常时返回 {error: ...}（HTTP 500），不能当成空数组；把错误记下来继续 fallback
+        if (data && data.error) {
+          lastErr = new Error(data.error);
+          data = null;
+        }
+        if (Array.isArray(data) && data.length) { list = data; break; }
+        // 日/周/月数据量天然充足（≥几百），失败也停止 fallback，避免把日线当日数据错当成分钟数据
+        if (p === "day" || p === "week" || p === "month") { list = (Array.isArray(data) ? data : []); break; }
         p = fallbackChain[p];
       }
-      if (!Array.isArray(list) || !list.length) throw new Error("K线数据为空");
+      if (!Array.isArray(list) || !list.length) {
+        const msg = lastErr ? lastErr.message : "K线数据为空";
+        throw new Error(msg);
+      }
       renderKline(list, p);
       _lastKlineList = list;
       // 高亮实际使用周期按钮（fallback 后可能与用户点击不同）
@@ -1029,12 +1041,18 @@
         const days = Math.max(0, Math.round((Date.now() - new Date(lastDate).getTime()) / 86400000));
         if (days >= 3) staleNote = " · ⚠ 数据滞后 " + days + " 天（本地未更新）";
       }
+      const intraNote = (p === "m60" || p === "m30" || p === "m15" || p === "m5") ? " · 本地" : "";
       $("klineTitle").textContent = klineName + " · " + periodLabel(p) + " · " + list.length + " 根"
-        + (lastDate ? " · 截至 " + lastDate.slice(5) : "") + staleNote;
+        + (lastDate ? " · 截至 " + lastDate.slice(5) : "") + intraNote + staleNote;
     } catch (e) {
       if (seq !== _klineSeq) return;               // 被新请求取消 → 静默
       if (e && e.name === "AbortError") { $("klineTitle").textContent = "K线加载超时"; return; }
       $("klineTitle").textContent = "K线加载失败: " + e.message;
+      // 失败时必须清掉旧图表，防止上一只股票的数据残留误导
+      try {
+        charts.p4.clear();
+        charts.p4.setOption({ xAxis: [{ data: [] }, { data: [] }, { data: [] }], series: [] }, true);
+      } catch (cle) { /* ignore */ }
       console.error(e);
     } finally {
       charts.p4.hideLoading();
@@ -1079,11 +1097,12 @@
             const lbl = N[p.seriesName] || p.seriesName;
             const dot = `<span style="display:inline-block;width:8px;height:8px;background:${p.color};border-radius:50%;margin-right:6px"></span>`;
             if (p.seriesName === "K线") {
-              const [o, c, l, h] = p.data;
+              // 不依赖 ECharts 传入的 p.data 顺序，直接用 list[i] 的 OHLC，避免 dataIndex 被误当开盘价
+              const o = today.open, c = today.close, l = today.low, h = today.high;
               const chg = prevClose ? (c - prevClose) / prevClose * 100 : 0;
               const amp = prevClose ? (h - l) / prevClose * 100 : 0;
-              const amt = c * today.vol * 100 / 1e8;   // 估算成交额（亿元）
               const cSign = chg >= 0 ? DARK.up : DARK.down;
+              const amt = today.amount != null ? today.amount / 1e8 : c * today.vol * 100 / 1e8;
               html += `<div style="margin:4px 0">${dot}<b>${lbl}</b></div>`
                     + `<div style="padding-left:14px;line-height:1.6">`
                     + `开盘 <b>${o}</b> · 收盘 <b>${c}</b>　<span style="color:${cSign}">${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%</span><br/>`
@@ -1181,20 +1200,48 @@
       $("histModal").classList.remove("hidden");
       return;
     }
-    const date = _lastKlineList[_lastKlineIdx].date || "";
+    const dateRaw = _lastKlineList[_lastKlineIdx].date || "";
+    const date = dateRaw.split(" ")[0] || dateRaw;  // 取日期部分，兼容 "2026-08-03 10:30"
     const dateCompact = date.replace(/-/g, "");
     const code = current;
     $("histTitle").textContent = code.toUpperCase() + " · " + date + " 历史分时";
     $("histMsg").textContent = "加载中…";
     $("histModal").classList.remove("hidden");
+    // 每次打开都销毁旧实例，确保在 visible 容器上重新 init，根治 0x0 尺寸/缓存导致的白图
+    if (window._histChart) {
+      try { window._histChart.dispose(); } catch (e) {}
+      window._histChart = null;
+    }
+    // 让浏览器先完成 modal 布局，避免 echarts.init 读到 0x0
+    void $("histChart").offsetWidth;
     fetch("/api/minute?code=" + encodeURIComponent(code) + "&date=" + dateCompact)
       .then(r => r.json())
-      .then(data => {
+      .then(res => {
+        // 历史某日：后端返回 {data, meta} 信封；兼容旧版纯数组
+        const meta = res && res.meta ? res.meta : null;
+        const data = res && res.data ? res.data : (Array.isArray(res) ? res : []);
         if (!Array.isArray(data) || !data.length) {
-          $("histMsg").textContent = date + " 暂无历史分时（免费源仅保留最近约 30 天）";
+          let msg = date + " 暂无历史分时";
+          if (meta && meta.mismatch) {
+            msg += "：本地未下载该日分钟数据，免费在线源返回的不是该日真实走势";
+          } else {
+            msg += "（免费源仅保留最近约 30 天）";
+          }
+          $("histMsg").textContent = msg;
           renderHistChart([], date);
         } else {
-          $("histMsg").textContent = date + " · " + data.length + " 点 · 来源腾讯";
+          let srcNote = "";
+          if (meta) {
+            const srcName = { tdx: "本地通达信", tencent: "腾讯", eastmoney: "东财" }[meta.source] || meta.source;
+            if (meta.source === "tdx") {
+              srcNote = " · 来源 " + srcName;
+            } else if (meta.local_last_date) {
+              srcNote = " · 本地数据止于 " + meta.local_last_date.slice(5) + "，" + date.slice(5) + " 来自 " + srcName;
+            } else {
+              srcNote = " · 来自 " + srcName;
+            }
+          }
+          $("histMsg").textContent = date + " · " + data.length + " 点" + srcNote;
           renderHistChart(data, date);
         }
       })
@@ -1204,31 +1251,44 @@
       });
   }
   function renderHistChart(minute, date) {
-    if (!window._histChart) window._histChart = echarts.init($("histChart"));
-    if (!minute || !minute.length) { window._histChart.clear(); return; }
-    const times = minute.map(x => normT(x.t));
-    const prices = minute.map(x => x.price);
-    const avgs = minute.map(x => x.avg);
-    const vols = minute.map(x => x.vol);
-    window._histChart.setOption({
-      backgroundColor: DARK.bg,
-      legend: { data: ["价格", "均价"], textStyle: { color: DARK.label }, top: 4 },
-      grid: { left: 50, right: 60, top: 36, bottom: 30 },
-      tooltip: { trigger: "axis", confine: true },
-      xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 29 } },
-      yAxis: [
-        { type: "value", scale: true, axisLabel: { color: DARK.label, fontSize: 10 } },
-        { type: "value", splitNumber: 3, axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v >= 1e4 ? (v/1e4).toFixed(0) + "万" : v } }
-      ],
-      series: [
-        { name: "价格", type: "line", data: prices, showSymbol: false,
-          lineStyle: { width: 1.5, color: DARK.price }, itemStyle: { color: DARK.price } },
-        { name: "均价", type: "line", data: avgs, showSymbol: false,
-          lineStyle: { width: 1.5, color: "#ffd700", type: "dashed" }, itemStyle: { color: "#ffd700" } },
-        { name: "成交量", type: "bar", data: vols.map(v => v / 100), yAxisIndex: 1,
-          itemStyle: { color: DARK.gray, opacity: 0.5 } }
-      ]
-    });
+    try {
+      const el = $("histChart");
+      // 强制浏览器完成 modal 布局后再取尺寸，避免 echarts 读到 0x0
+      void el.offsetWidth; void el.offsetHeight;
+      if (!window._histChart) window._histChart = echarts.init(el);
+      window._histChart.clear();
+      if (!minute || !minute.length) { return; }
+      const times = minute.map(x => normT(x.t));
+      const prices = minute.map(x => x.price);
+      const avgs = minute.map(x => x.avg);
+      const vols = minute.map(x => x.vol);
+      window._histChart.setOption({
+        backgroundColor: DARK.bg,
+        legend: { data: ["价格", "均价"], textStyle: { color: DARK.label }, top: 4 },
+        grid: { left: 50, right: 60, top: 36, bottom: 30 },
+        tooltip: { trigger: "axis", confine: true },
+        xAxis: { type: "category", data: times, axisLabel: { fontSize: 10, interval: 29 } },
+        yAxis: [
+          { type: "value", scale: true, axisLabel: { color: DARK.label, fontSize: 10 } },
+          { type: "value", splitNumber: 3, axisLabel: { color: DARK.label, fontSize: 10, formatter: v => v >= 1e4 ? (v/1e4).toFixed(0) + "万手" : v + "手" } }
+        ],
+        series: [
+          { name: "价格", type: "line", data: prices, showSymbol: false,
+            lineStyle: { width: 1.5, color: DARK.price }, itemStyle: { color: DARK.price } },
+          { name: "均价", type: "line", data: avgs, showSymbol: false,
+            lineStyle: { width: 1.5, color: "#ffd700", type: "dashed" }, itemStyle: { color: "#ffd700" } },
+          { name: "成交量", type: "bar", data: vols, yAxisIndex: 1,
+            itemStyle: { color: DARK.gray, opacity: 0.5 } }
+        ]
+      });
+      // modal 显示后 DOM 尺寸可能仍在过渡，setTimeout 0 在 layout 之后 resize 确保图能真正画出
+      setTimeout(() => {
+        if (window._histChart) window._histChart.resize();
+      }, 0);
+    } catch (e) {
+      $("histMsg").textContent = "图表渲染失败: " + e.message;
+      console.error("renderHistChart error", e);
+    }
   }
 
   // ---------- 视图切换 ----------
@@ -1257,10 +1317,17 @@
     if (!tb) return;
     try {
       const r = await fetch("/api/watchlist");
-      const codes = await r.json();
+      const items = await r.json();
+      const wl = items.filter(x => x.in_watchlist);
+      if (!wl.length) {
+        tb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#8b949e">暂无自选标的，点击顶部「+」加入</td></tr>`;
+        return;
+      }
+      const codes = wl.map(x => x.code);
       const many = await (await fetch("/api/many?codes=" + codes.join(","))).json();
       const rows = [];
-      for (const code of codes) {
+      for (const item of wl) {
+        const code = item.code;
         const d = many[code] || {};
         const q = d.quote;
         if (!q) continue;
@@ -1308,6 +1375,47 @@
     await loadWatchlist();
     $("stSource").textContent = "已加自选";
   }
+  // 「−」= 把当前正在看的标的移出自选（US-032，与「+」对称）
+  async function removeWatch() {
+    const code = current;
+    await fetch("/api/watchlist", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remove", code }) });
+    await loadWatchlist();
+    $("stSource").textContent = "已移出自选";
+  }
+  // ---------- 复盘/分析记录（US-017） ----------
+  function _esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  async function openAnalysis() {
+    $("analysisTitle").textContent = "复盘记录 · " + current.toUpperCase();
+    $("analysisInput").value = "";
+    $("analysisModal").classList.remove("hidden");
+    await loadAnalysis();
+  }
+  async function loadAnalysis() {
+    const list = $("analysisList");
+    try {
+      const r = await fetch("/api/analysis?code=" + encodeURIComponent(current));
+      const rows = await r.json();
+      if (!rows.length) { list.innerHTML = `<div class="a-empty">暂无记录，写下第一条分析</div>`; return; }
+      list.innerHTML = rows.map(x => {
+        const t = new Date((x.ts || 0) * 1000);
+        const ts = isNaN(t) ? "" : t.toLocaleString("zh-CN", { hour12: false });
+        const note = (x.data && x.data.note) || "";
+        return `<div class="a-item"><div class="a-meta"><span>${ts}</span><span>${x.code.toUpperCase()}</span></div><div class="a-note">${_esc(note)}</div></div>`;
+      }).join("");
+    } catch (e) { list.innerHTML = `<div class="a-empty">加载失败</div>`; }
+  }
+  async function saveAnalysis() {
+    const note = $("analysisInput").value.trim();
+    if (!note) return;
+    await fetch("/api/analysis", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: current, note }) });
+    $("analysisInput").value = "";
+    await loadAnalysis();
+  }
+
   function switchTo(code) {
     current = code;
     latestData = null;                // 清空旧 quote，防止 K 线标题使用陈旧 name 错配
@@ -1322,6 +1430,13 @@
 
   // ---------- 搜索 ----------
   let _searchTimer = null;
+  let _searchActive = -1;   // 当前高亮的搜索项（US-029 键盘导航）
+  function _searchHighlight(box, idx) {
+    const items = box.querySelectorAll(".item");
+    items.forEach((el, i) => el.classList.toggle("active", i === idx));
+    const el = items[idx];
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+  }
   function setupSearch() {
     const input = $("searchInput");
     const box = $("searchResults");
@@ -1336,9 +1451,20 @@
       if (!e.target.closest(".search-wrap")) box.classList.remove("show");
     });
     input.addEventListener("keydown", e => {
-      if (e.key === "Enter") {
-        const first = box.querySelector(".item");
-        if (first) first.click();
+      const items = box.querySelectorAll(".item");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (!items.length) return;
+        _searchActive = (_searchActive + 1) % items.length;
+        _searchHighlight(box, _searchActive);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!items.length) return;
+        _searchActive = (_searchActive - 1 + items.length) % items.length;
+        _searchHighlight(box, _searchActive);
+      } else if (e.key === "Enter") {
+        const el = _searchActive >= 0 ? items[_searchActive] : box.querySelector(".item");
+        if (el) el.click();
       }
     });
   }
@@ -1346,6 +1472,7 @@
     const box = $("searchResults");
     const r = await fetch("/api/search?q=" + encodeURIComponent(q));
     const list = await r.json();
+    _searchActive = -1;
     box.innerHTML = list.length === 0
       ? `<div class="empty-hint">无匹配结果</div>`
       : list.map(x => `<div class="item" data-code="${x.code}"><span class="code">${x.code.toUpperCase()}</span>${x.name}<span class="cat">${x.cat}</span></div>`).join("");
@@ -1368,17 +1495,27 @@
     setupSubConfigModal();
     setupKlineSubConfigModal();
 
-    $("watchInput").addEventListener("change", e => {
+    function on(id, ev, fn) {
+      const el = $(id);
+      if (!el) { console.warn("[init] 未找到 #" + id + "，跳过事件绑定（可能缓存了旧页面）"); return; }
+      el.addEventListener(ev, fn);
+    }
+    on("watchInput", "change", e => {
       const v = e.target.value.trim();
       // 从 datalist 选中时 value=code；用户输入中文时不匹配，跳过
       if (v && v !== current) switchTo(v);
     });
-    $("addBtn").addEventListener("click", addWatch);
-    $("refreshBtn").addEventListener("click", () => loadQuote(current));
-    $("klineBtn").addEventListener("click", () => switchView(_view === "kline" ? "minute" : "kline"));
-    $("backBtn").addEventListener("click", () => switchView("minute"));
+    on("addBtn", "click", addWatch);
+    on("delBtn", "click", removeWatch);
+    on("refreshBtn", "click", () => loadQuote(current));
+    on("klineBtn", "click", () => switchView(_view === "kline" ? "minute" : "kline"));
+    on("backBtn", "click", () => switchView("minute"));
     // US-006 自选批量表格
-    $("watchlistBtn").addEventListener("click", () => switchView(_view === "watchlist" ? "minute" : "watchlist"));
+    on("watchlistBtn", "click", () => switchView(_view === "watchlist" ? "minute" : "watchlist"));
+    on("analysisBtn", "click", openAnalysis);
+    on("analysisClose", "click", () => $("analysisModal")?.classList.add("hidden"));
+    on("analysisSave", "click", saveAnalysis);
+    on("analysisModal", "click", e => { if (e.target.id === "analysisModal") $("analysisModal")?.classList.add("hidden"); });
     $("wlRefreshBtn").addEventListener("click", () => loadWatchlistTable());
     document.querySelectorAll(".kperiod").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -1446,8 +1583,12 @@
     });
 
     // 历史分时模态关闭
-    $("histClose").addEventListener("click", () => $("histModal").classList.add("hidden"));
-    $("histModal").addEventListener("click", e => { if (e.target.id === "histModal") $("histModal").classList.add("hidden"); });
+    function closeHistModal() {
+      $("histModal").classList.add("hidden");
+      if (window._histChart) window._histChart.clear();
+    }
+    $("histClose").addEventListener("click", closeHistModal);
+    $("histModal").addEventListener("click", e => { if (e.target.id === "histModal") closeHistModal(); });
     // 公告模态关闭
     $("annClose").addEventListener("click", () => $("annModal").classList.add("hidden"));
     $("annModal").addEventListener("click", e => { if (e.target.id === "annModal") $("annModal").classList.add("hidden"); });
