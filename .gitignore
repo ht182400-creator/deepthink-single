@@ -13,3 +13,7 @@ venv/
 # 系统
 .DS_Store
 Thumbs.db
+
+# Node 前端测试依赖（jsdom 等 devDependencies）
+node_modules/
+
