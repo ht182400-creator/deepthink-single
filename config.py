@@ -33,8 +33,8 @@ FUND_HOSTS = ["push2.eastmoney.com", "push2delay.eastmoney.com"]
 # 日/周/月 K：通达信本地 → npx
 # 注：东财 K线 HTTP 接口不稳定（调研曾返回 null），暂未接入降级链；实现后加回 "eastmoney"
 KLINE_DAY_SOURCES = ["tdx", "npx"]
-# 分钟 K：npx（东财分钟 K 接口不稳，同上）
-KLINE_MIN_SOURCES = ["npx"]
+# 分钟 K：通达信本地优先（全量历史，m5/m15/m30/m60 由 1 分钟线聚合）；无本地数据回退 npx（当日）
+KLINE_MIN_SOURCES = ["tdx", "npx"]
 
 # ---------- 稳定性 ----------
 CIRCUIT_FAILS = 5        # 连续失败 N 次 → 熔断
