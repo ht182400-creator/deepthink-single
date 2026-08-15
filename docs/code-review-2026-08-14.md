@@ -184,5 +184,24 @@ EMA 首个窗口用 `for` 求和（O(n)），但整体在每次 K线渲染都重
 
 - **P2** 指标随 K线缓存一次算好（微优化，长周期再处理）。
 - **M4/M5** 全局变量收敛 / 增量更新（非首屏高频，暂缓）。
-- **§5-2/3** jsdom 冒烟 + 后端 mock 化（CI 建设项）。
-- **K线指标渲染去重**：MACD/KDJ/BOLL/RSI 与副图共用部分样板，可后续一并 `buildSubOption` 化。
+- ~~**§5-2/3** jsdom 冒烟 + 后端 mock 化~~ → **已在 v0.0.5 完成**（见 §7.8：源码级 D2/D3/M1 回归守护 + 可选 jsdom 冒烟 + C2 重试确定性测试）。
+- ~~**K线指标渲染去重**~~ → **已在 v0.0.5 完成**（见 §7.8：`buildKlineSubOption` 骨架，MACD/KDJ/BOLL/RSI 四函数收敛）。
+
+### 7.8 v0.0.5 后续优化（2026-08-14，本地待发布）
+
+> 视角：架构师（测试门禁/折旧修复）、全栈（复盘记录 CRUD + 批量接口回归修复）、UI 专家（占位/移动端/搜索导航/自选删除）、股票数据挖掘（指标渲染去重）。
+> 全部代码改动已通过 `node --check` + `node --test`（9 前端用例）+ Python 单测（132 后端用例）把关。
+
+| 项 | 状态 | 落地方式 |
+|---|---|---|
+| **US-017 复盘记录** | ✅ | 后端 `db.log_analysis`/`get_analysis_log`（analysis_log 表 WAL 已就绪）+ 新增 `/api/analysis`（GET 列表 / POST 新增）；前端「复盘」按钮 + 模态框（textarea 保存 + 列表回读，note 经 HTML 转义防 XSS）。配套 `test_analysis_crud` / `test_analysis_missing_code_400`。 |
+| **US-069 K线指标渲染去重** | ✅ | 新增 `buildKlineSubOption({dates,yAxis,series})` 通用骨架（grid/tooltip/dataZoom/xAxis/yAxis 公共样板），`renderMacd/Kdj/Boll/Rsi` 四函数收敛到该骨架，**series 与视觉参数逐字不变**（零视觉回归）。 |
+| **US-029 搜索键盘导航** | ✅ | 搜索结果支持 ↑/↓ 高亮 + Enter 确认（原仅 Enter 选第一条）；`_searchActive` 索引 + `_searchHighlight` 滚动居中。 |
+| **US-030 空数据占位** | ✅ | `renderMinute` 无数据时显示「暂无分时数据」浮层（`#p1Empty`），有数据时隐藏。 |
+| **US-031 移动端自适应** | ✅ | CSS `@media (max-width:760px)`：三列堆叠、图表高度按视口（`52vh`/`56vh`）、左右栏占满宽度。 |
+| **US-032 自选删除** | ✅ | 顶部「−」按钮对称于「+」，移除当前标的（`/api/watchlist` POST `remove` 早已支持）。 |
+| **US-071 前端回归守护 + jsdom 冒烟** | ✅ | `tests/js/dom-smoke.test.js`：3 个源码级用例（D2/D3/M1 守护，恒跑）+ 1 个 jsdom 功能冒烟（可选，缺 jsdom 跳过）。 |
+| **US-072 重试确定性测试** | ✅ | `tests/test_fallback.py::TestRetryBackoff`：`time.sleep` mock 后验证 `_call_one` 重试到 `RETRY_MAX` 才放弃（C2 生效，非死配置）。 |
+| **🔴 修复 v0.0.4 回归 `/api/many` 500** | ✅ | C5 改动引入 `config.MAX_CODES` 但 `app.py` 漏 `import config`（NameError）；补 `import config`。`test_many` 断言 200 守护，CI 防回退。（`py_compile` 抓不到未定义名，运行时测试才暴露） |
+
+> 备注：UI 改动（占位/移动端/搜索/自选删除/复盘）均为低风险增量，未触及既有业务逻辑与配色；K线指标重构经 `node --check` 与参数比对确认零视觉回归。
