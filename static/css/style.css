@@ -48,6 +48,14 @@ button:hover { filter: brightness(1.15); }
 #p5 .chart { height: 160px; }
 .hidden { display: none !important; }
 
+/* 分时图占位文案（US-030：无数据时显示，而非空图） */
+#p1 { position: relative; }
+.empty-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #8b949e; font-size: 13px; pointer-events: none;
+}
+
 /* 分时图与盘口并排布局 */
 /* 分钟视图：三列布局（左列图表组 / 中列五档+综合 / 右列分钟详情+公告等） */
 .minute-row { display: flex; gap: 8px; align-items: stretch; }
@@ -315,6 +323,23 @@ button:hover { filter: brightness(1.15); }
 button.ghost { background: #30363d; }
 .small { font-size: 11px; }
 
+/* 复盘记录 modal（US-017） */
+.analysis-body { width: min(520px, 92vw); display: flex; flex-direction: column; gap: 10px; }
+.analysis-input {
+  width: 100%; min-height: 110px; resize: vertical;
+  background: #0d1117; color: #e6edf3; border: 1px solid #30363d;
+  border-radius: 6px; padding: 10px; font-size: 13px; font-family: inherit; line-height: 1.6;
+}
+.analysis-input:focus { outline: none; border-color: #1f6feb; }
+.analysis-actions { display: flex; justify-content: flex-end; }
+.analysis-list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.analysis-list .a-item {
+  border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; background: rgba(13,17,23,0.6);
+}
+.analysis-list .a-meta { font-size: 11px; color: #8b949e; margin-bottom: 4px; display: flex; justify-content: space-between; }
+.analysis-list .a-note { font-size: 13px; color: #c9d1d9; white-space: pre-wrap; line-height: 1.6; word-break: break-word; }
+.analysis-list .a-empty { text-align: center; color: #8b949e; font-size: 12px; padding: 12px; }
+
 /* 搜索结果下拉 */
 .search-wrap { position: relative; }
 .search-results {
@@ -329,6 +354,7 @@ button.ghost { background: #30363d; }
   font-size: 13px;
 }
 .search-results .item:hover { background: #161b22; }
+.search-results .item.active { background: #1f6feb; color: #fff; }
 .search-results .item .code { color: #8b949e; font-size: 11px; margin-right: 8px; }
 
 /* 自选批量表格 */
@@ -362,3 +388,15 @@ button.ghost { background: #30363d; }
 
 .muted { color: #8b949e; font-size: 12px; }
 footer { text-align: center; padding: 8px; }
+
+/* 移动端自适应（US-031：窄屏下三列堆叠、图表高度按视口） */
+@media (max-width: 760px) {
+  .wrap { padding: 6px; }
+  .topbar { padding: 8px 10px; }
+  .controls { flex-wrap: wrap; }
+  .minute-row { flex-direction: column; }
+  .minute-left #ch1 { height: 52vh; }
+  .chart.tall { height: 56vh; }
+  .minute-mid, .minute-right { flex: 0 0 auto; width: 100%; }
+  .minute-right { height: auto !important; }
+}
