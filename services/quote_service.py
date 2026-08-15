@@ -46,14 +46,76 @@ def get_quote(code: str) -> dict:
 
 
 def get_minute(code: str, date: str = "") -> list:
-    """当日分时(date="") 或历史某日分时(date="YYYYMMDD")；当日走 TTL 缓存，历史日按日键存。"""
+    """当日分时(date="") 或历史某日分时(date="YYYYMMDD")；当日走腾讯/东财，历史日优先通达信本地 .lc1。"""
     if date:
         key = f"minute:{code}:{date}"
+        # 历史分时：通达信本地优先（突破腾讯近 30 天限制），无则回退腾讯/东财
+        chain = ["tdx"] + config.QUOTE_SOURCES
         return minute_cache.get_or_set(
             key,
-            lambda: fb.fallback(config.QUOTE_SOURCES, "get_minute", code, date=date)[0])[0]
+            lambda: fb.fallback(chain, "get_minute", code, date=date)[0])[0]
     return minute_cache.get_or_set(f"minute:{code}",
                                    lambda: fb.fallback(config.QUOTE_SOURCES, "get_minute", code)[0])[0]
+
+
+def _minute_matches_day(code: str, date_dash: str, minute_rows: list) -> bool:
+    """校验在线源返回的分时数据是否真的是请求日期的。
+
+    腾讯/东财的免费接口对较远历史日期会忽略 date 参数，直接返回最近交易日数据，
+    导致不同日期历史分时走势图完全一样。我们用该日日线 OHLC 做交叉验证：
+    首根 price 应接近 open，末根 price 应接近 close（允许 1% 或 0.05 元容差）。
+    """
+    if not minute_rows:
+        return False
+    try:
+        day_rows = get_kline(code, "day", limit=0)
+        day = next((k for k in day_rows if k.get("date") == date_dash), None)
+        if not day:
+            return False
+        first_price = float(minute_rows[0]["price"])
+        last_price = float(minute_rows[-1]["price"])
+        o, c = float(day["open"]), float(day["close"])
+        tol = max(abs(o) * 0.01, 0.05)
+        return abs(first_price - o) <= tol and abs(last_price - c) <= tol
+    except Exception as e:
+        LOG.warning("_minute_matches_day %s %s 校验失败: %s", code, date_dash, e)
+        return False
+
+
+def get_minute_with_meta(code: str, date: str) -> dict:
+    """历史某日分时 + 来源/本地数据元信息。
+
+    返回 {data: [...], meta: {source, local_last_date, requested_date, mismatch}}。
+    - source：实际命中的数据源（"tdx" / "tencent" / "eastmoney" / "none"）。
+    - local_last_date：本地通达信 .lc1 最后一根分钟线日期，无则 ""。
+    - requested_date：请求的历史日期（YYYY-MM-DD）。
+    - mismatch：在线源数据与请求日期日线不匹配时为 True。
+
+    用途：当本地分钟数据落后（请求日期 > local_last_date），source 会回退到腾讯/东财；
+    但免费在线源对较远日期会返回最近交易日数据，因此增加日线 OHLC 校验，
+    不匹配时返回空数据 + source="none"，避免前端画出错误走势。
+    """
+    from sources.tdx import tdx_last_minute_date
+    d8 = date.replace("-", "")
+    date_dash = f"{d8[:4]}-{d8[4:6]}-{d8[6:8]}"
+    chain = ["tdx"] + config.QUOTE_SOURCES
+    res, used = fb.fallback(chain, "get_minute", code, date=date)
+    local_last = tdx_last_minute_date(code)
+    mismatch = False
+    if used != "tdx" and res:
+        if not _minute_matches_day(code, date_dash, res):
+            mismatch = True
+            res = []
+            used = "none"
+    return {
+        "data": res,
+        "meta": {
+            "source": used,
+            "local_last_date": local_last,
+            "requested_date": date_dash,
+            "mismatch": mismatch,
+        },
+    }
 
 
 # =====================================================================
@@ -67,8 +129,13 @@ def get_fund_flow(code: str) -> list:
 # =====================================================================
 # K线（日/周/月：通达信→npx；分钟：npx→eastmoney；+文件缓存）
 # =====================================================================
-# 缓存最小条数阈值：低于此视为污染缓存，强制重新拉取
-_MIN_CACHE_ROWS = {"day": 200, "week": 50, "month": 20, "m1": 50, "m5": 50, "m15": 50, "m30": 50, "m60": 50}
+# 缓存最小条数阈值：低于此视为污染缓存，强制重新拉取。
+# 日/周/月来自通达信 .day（全量历史），下限用于剔除明显残缺缓存。
+# 分钟 K：现在通达信本地 .lc1 优先（全量历史），故也设下限剔除「旧 npx 当日切片」
+# （m60 约 4 根）。tdx 全量远大于此下限不会被误杀；仅当无本地数据回退 npx 当日时
+# 才可能反复重拉（边缘情况，用户已配置 vipdoc 主路径不触发）。
+_MIN_CACHE_ROWS = {"day": 200, "week": 50, "month": 20}
+_MIN_CACHE_ROWS_MIN = {"m60": 10, "m30": 20, "m15": 40, "m5": 40, "m1": 100}
 
 _PERIOD_TYPE = {
     "day": "day", "week": "day", "month": "day",
@@ -142,22 +209,24 @@ def get_kline(code: str, period: str = "day", limit: int = 260) -> list:
     else:
         chain = config.KLINE_MIN_SOURCES     # npx → eastmoney
 
-    # 日/周/月：数据源拉取时取全量存入缓存（缓存存全量，返回时按 limit 截断）；
-    # 分钟 K：按 limit 拉取即可（数据量大无需存全量）
-    fetch_limit = 0 if ptype == "day" else limit
+    # 日/周/月 与 分钟 K 均从数据源拉「全量」存入缓存（通达信本地有多少存多少，
+    # 含跨交易日完整分钟历史）；返回时统一按请求 limit 截断（limit=0 → 全量）。
+    # 注意：绝不能给分钟 K 设下限（如 2000），否则会截断 1 分钟长序列。
+    fetch_limit = 0
 
     def _fetch():
         return fb.fallback(chain, "get_kline", code, period, fetch_limit)[0]
 
     cached = kline_cache.get(key)
     if cached is not None:
-        # 缓存条数过少视为污染（防御：npx 偶发返回小数据后被持久化）
-        if len(cached) < _MIN_CACHE_ROWS.get(period, 50):
+        # 缓存条数过少视为污染（日线/周线/月线 or 分钟 K 全量下限）
+        min_rows = _MIN_CACHE_ROWS.get(period) or _MIN_CACHE_ROWS_MIN.get(period)
+        if min_rows and len(cached) < min_rows:
             LOG.warning("K线缓存污染(code=%s period=%s rows=%d), 强制重拉", code, period, len(cached))
             kline_cache.invalidate(key)
-        elif ptype == "day" and _cache_is_stale(cached, code):
-            # 日 K：通达信本地有更新（本地日期 > 缓存日期）→ 重拉最新
-            LOG.info("K线缓存过期(code=%s last=%s), 重拉通达信最新", code, cached[-1].get("date", "?"))
+        elif (ptype == "day" or ptype == "min") and _cache_is_stale(cached, code):
+            # 日 K / 分钟 K：通达信本地有更新（本地最后日期 > 缓存最后日期）→ 重拉最新
+            LOG.info("K线缓存过期(code=%s period=%s last=%s), 重拉通达信最新", code, period, cached[-1].get("date", "?"))
             kline_cache.invalidate(key)
         else:
             return _slice(cached, limit)
