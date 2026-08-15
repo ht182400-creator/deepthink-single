@@ -26,9 +26,11 @@
         <div id="searchResults" class="search-results"></div>
       </div>
       <button id="addBtn" title="把当前标的加入自选">+</button>
+      <button id="delBtn" title="把当前标的移出自选">−</button>
       <button id="refreshBtn" title="立即刷新行情">刷新</button>
       <button id="klineBtn" title="切换 K线/分时视图">K线</button>
       <button id="watchlistBtn" title="自选批量表格">自选</button>
+      <button id="analysisBtn" title="复盘/分析记录">复盘</button>
       <span class="muted" id="updateTime"></span>
     </div>
   </header>
@@ -54,6 +56,7 @@
         <section class="panel" id="p1">
           <div class="phead">分时走势 (双击/回车查看 K线) · 右键点空白区配置副图</div>
           <div id="ch1" class="chart"></div>
+          <div id="p1Empty" class="empty-overlay hidden">暂无分时数据</div>
         </section>
         <div id="subCharts"></div>
       </div>
@@ -170,6 +173,21 @@
   </div>
 </div>
 
+<!-- 复盘/分析记录 modal（US-017） -->
+<div id="analysisModal" class="modal hidden">
+  <div class="modal-body analysis-body">
+    <div class="modal-head">
+      <span id="analysisTitle" class="muted">复盘记录</span>
+      <button id="analysisClose" class="ghost">关闭</button>
+    </div>
+    <textarea id="analysisInput" class="analysis-input" placeholder="记录对当前标的的分析判断（如：放量突破、主力连续流入…）"></textarea>
+    <div class="analysis-actions">
+      <button id="analysisSave" class="primary">保存</button>
+    </div>
+    <div id="analysisList" class="analysis-list"></div>
+  </div>
+</div>
+
 <!-- 右键菜单 -->
 <div id="contextMenu" class="ctx-menu hidden">
   <div class="ctx-item" id="ctxConfigSub">⚙ 副图配置</div>
@@ -181,8 +199,8 @@
   <div class="ctx-item ctx-hint muted small">提示：右键空白区 / 分时图 均可</div>
 </div>
 
-<script src="/static/js/echarts.min.js?v=33"></script>
-<script src="/static/js/indicators.js?v=1"></script>
-<script src="/static/js/app.js?v=33"></script>
+<script src="/static/js/echarts.min.js?v=34"></script>
+<script src="/static/js/indicators.js?v=2"></script>
+<script src="/static/js/app.js?v=42"></script>
 </body>
 </html>
