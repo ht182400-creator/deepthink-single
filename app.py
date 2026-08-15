@@ -44,6 +44,7 @@ def setup_logging():
 LOG = setup_logging()
 
 # ---- 业务模块（服务层） ----
+import config  # noqa: E402
 import services.quote_service as svc  # noqa: E402
 import services.search_service as search_svc  # noqa: E402
 import services.db as db  # noqa: E402
@@ -174,12 +175,18 @@ def api_many():
 
 @app.route("/api/minute")
 def api_minute():
-    """分时数据：date 缺省当日；YYYYMMDD（注意是 8 位无分隔符）拉历史某日分时。"""
+    """分时数据：date 缺省当日；YYYYMMDD（注意是 8 位无分隔符）拉历史某日分时。
+
+    历史某日（date 有值）返回 {data, meta} 信封，meta 含来源与本地数据截止日期，
+    供前端标注「本地数据滞后、该日来自腾讯/东财」。当日分时返回纯数组（兼容日内图）。
+    """
     code = request.args.get("code", "").strip().lower()
     date = request.args.get("date", "").strip().replace("-", "")
     if not code:
         return jsonify({"error": "code 必填"}), 400
     try:
+        if date:
+            return jsonify(svc.get_minute_with_meta(code, date))
         return jsonify(svc.get_minute(code, date))
     except Exception as e:
         LOG.error("api/minute %s/%s 失败: %s", code, date, e)
@@ -198,6 +205,31 @@ def api_announcement():
     except Exception as e:
         LOG.error("api/announcement %s 失败: %s", art_code, e)
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/analysis", methods=["GET", "POST"])
+def api_analysis():
+    """复盘/分析记录（US-017）：GET 列表（?code= 过滤某标的），POST 新增笔记。"""
+    if request.method == "GET":
+        code = request.args.get("code", "").strip().lower() or None
+        rows = db.get_analysis_log(code)
+        out = []
+        for r in rows:
+            try:
+                data = json.loads(r["data"])
+            except Exception:
+                data = {}
+            out.append({"id": r["id"], "ts": r["ts"], "code": r["code"], "data": data})
+        return jsonify(out)
+    payload = request.get_json(force=True) or {}
+    code = (payload.get("code") or "").strip().lower()
+    note = (payload.get("note") or "").strip()
+    if not code:
+        return jsonify({"error": "code 必填"}), 400
+    db.log_analysis(code, {"note": note,
+                            "created": datetime.datetime.now().isoformat(timespec="seconds")})
+    LOG.info("analysis %s 记录 %d 字", code, len(note))
+    return jsonify({"ok": True})
 
 
 @app.route("/api/sysinfo")
