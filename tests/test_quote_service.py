@@ -145,6 +145,31 @@ class TestQuoteService(unittest.TestCase):
         self.assertEqual(r["sh600519"]["quote"]["name"], "茅台")
         self.assertIn("error", r["sz000858"])
 
+    def test_get_minute_with_meta_mismatch_rejected(self):
+        """在线源返回的数据与请求日期日线不匹配时，应拒绝并 source='none'。"""
+        # 日线：2024-11-04 open=1600 close=1580（与在线源返回的 1355/1341 明显不符）
+        day_rows = [{"date": "2024-11-04", "open": 1600.0, "close": 1580.0, "high": 1620.0, "low": 1570.0, "vol": 100}]
+        fake_minute = [{"t": "0930", "price": 1355.0}, {"t": "1500", "price": 1341.99}]
+        with patch.object(self.qs, "get_kline", return_value=day_rows), \
+             patch("core.fallback.fallback", return_value=(fake_minute, "tencent")), \
+             patch("sources.tdx.tdx_last_minute_date", return_value="2026-08-14"):
+            out = self.qs.get_minute_with_meta("sh600519", "2024-11-04")
+        self.assertEqual(out["data"], [])
+        self.assertEqual(out["meta"]["source"], "none")
+        self.assertTrue(out["meta"]["mismatch"])
+
+    def test_get_minute_with_meta_match_accepted(self):
+        """在线源返回的数据与请求日期日线匹配时，正常返回。"""
+        day_rows = [{"date": "2024-11-04", "open": 1355.0, "close": 1342.0, "high": 1360.0, "low": 1340.0, "vol": 100}]
+        fake_minute = [{"t": "0930", "price": 1355.0}, {"t": "1500", "price": 1342.0}]
+        with patch.object(self.qs, "get_kline", return_value=day_rows), \
+             patch("core.fallback.fallback", return_value=(fake_minute, "tencent")), \
+             patch("sources.tdx.tdx_last_minute_date", return_value="2026-08-14"):
+            out = self.qs.get_minute_with_meta("sh600519", "2024-11-04")
+        self.assertEqual(len(out["data"]), 2)
+        self.assertEqual(out["meta"]["source"], "tencent")
+        self.assertFalse(out["meta"]["mismatch"])
+
 
 if __name__ == "__main__":
     unittest.main()
