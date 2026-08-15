@@ -49,18 +49,20 @@ def temp_config():
 
 
 def make_tdx_file(tmp_root: str, code: str, records: list):
-    """构造通达信 .day 文件。records: [(date_int, o, h, l, c, vol)]，价格元，日期 YYYYMMDD int。"""
+    """构造通达信 .day 文件。records: [(date_int, o, h, l, c, vol, amount?)]，价格元，日期 YYYYMMDD int。"""
     import struct
     mkt, pure = code[:2], code[2:]
     d = os.path.join(tmp_root, mkt, "lday")
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, f"{code}.day")
     buf = b""
-    for date_i, o, h, l, c, vol in records:
+    for rec in records:
+        date_i, o, h, l, c, vol = rec[:6]
+        amt = rec[6] if len(rec) > 6 else 0.0
         buf += struct.pack("<iiiiifii", date_i,
                            int(round(o * 100)), int(round(h * 100)),
                            int(round(l * 100)), int(round(c * 100)),
-                           0.0, vol, 0)
+                           float(amt), vol, 0)
     with open(path, "wb") as f:
         f.write(buf)
     return path
