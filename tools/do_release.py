@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
-"""v0.0.2 发布：更新全部文件到 main + 打 tag + 创建 release。
-注意：沙箱 git 出网受限 → 用 api.github.com Contents API。"""
+"""发布脚本：更新全部文件到 main + 打 tag + 创建 release。
+注意：沙箱 git 出网受限 → 用 api.github.com Contents API。
+版本号传参：python do_release.py v0.0.5（缺省 v0.0.5）。"""
 import base64
 import json
 import os
 import sys
+import time
 import urllib.request
+import urllib.error
 
 OWNER = "ht182400-creator"
 REPO = "deepthink-single"
 BRANCH = "main"
-TAG = "v0.0.4"
+TAG = "v0.0.5"
 ROOT = r"E:\AI_Studio\deepthinkSingle"
 EXCLUDE_DIRS = {"data", "node_modules", "__pycache__", ".git", "venv", ".venv", "logs"}
 EXCLUDE_SUFFIXES = (".pyc", ".log", ".tmp", ".db")
@@ -62,13 +65,12 @@ def upload_all():
     for rel in files:
         with open(os.path.join(ROOT, rel), "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
-        body = {"message": f"v0.0.2: {rel}", "content": b64, "branch": BRANCH}
+        body = {"message": f"{TAG}: {rel}", "content": b64, "branch": BRANCH}
         gs, gj = api("GET", f"/repos/{OWNER}/{REPO}/contents/{rel}")
         if gs == 200 and gj.get("sha"):
             body["sha"] = gj["sha"]
         status, resp = api("PUT", f"/repos/{OWNER}/{REPO}/contents/{rel}", body)
         if status == 409:
-            import time
             time.sleep(2)
             status, resp = api("PUT", f"/repos/{OWNER}/{REPO}/contents/{rel}", body)
         if status in (200, 201):
@@ -88,7 +90,7 @@ def get_head_sha():
 
 
 def create_tag(sha):
-    """轻量 tag（refs/tags/v0.0.2）。"""
+    """轻量 tag（refs/tags/{TAG}）。"""
     status, resp = api("POST", f"/repos/{OWNER}/{REPO}/git/refs",
                        {"ref": f"refs/tags/{TAG}", "sha": sha})
     if status == 201:
@@ -105,9 +107,19 @@ def create_tag(sha):
 
 
 def create_release(sha):
+    body = (
+        f"历史分时 / 日K 渲染与数据源校验 + 缺陷 #14-#24（{TAG}）：\n"
+        "- 缺陷 #14-#24：历史分时白图、分钟K全量被 2000 上限截断、K线失败 UX、分钟K陈旧缓存(真实浏览器 E2E 守护)、"
+        "腾讯分时累计量山形与均价100倍(手单位)、日线 tooltip 把 dataIndex 当开盘价、历史分时本地滞后标注来源、"
+        "在线源忽略远日期参数致走势重合、自选批量表格对象 join 成 [object Object]、批量表格整池超 MAX_CODES(50)\n"
+        "- 后端补 import config 修复 /api/many 500 回归；60 分 K 卡 loading 修复\n"
+        "- 配套 US-017 复盘记录 / US-029-032 UI 细节 / US-069 K线去重 / US-071 jsdom 冒烟 / US-072 重试测试\n"
+        "- 新增 test_tdx_minute.py + tests/e2e_kline.js（puppeteer-core 真实 Chrome）\n"
+        "- 测试基线：后端 143 单测 / 前端 17（dom-smoke 12 + indicators 5）全 PASS"
+    )
     status, resp = api("POST", f"/repos/{OWNER}/{REPO}/releases",
                        {"tag_name": TAG, "name": f"V{TAG[1:]}", "target_commitish": sha,
-                        "body": "代码评审整改（v0.0.4）：\n- 缺陷修复 D1-D4：MACD 信号线(DEA)不渲染、窗口缩放崩溃、K线缩放监听泄漏、后端重复函数\n- 架构优化 P1/C1-C3/C5：低频数据加 TTL 缓存、TDX_ROOT 改环境变量、指数退避重试、SQLite WAL、/api/many 限流\n- UI/数据 M2/M3：副图误导性标注、搜索返回字段统一\n- 副图渲染去重 M1、前端请求超时/取消防护 P4、删除废弃模块 C4\n- 新增静态指标算法模块 indicators.js + Node 单测（5/5）",
+                        "body": body,
                         "draft": False, "prerelease": False})
     if status in (201, 200):
         print(f"release V{TAG[1:]} 创建成功: {resp.get('html_url')}")
@@ -117,7 +129,7 @@ def create_release(sha):
 
 
 if __name__ == "__main__":
-    globals()["TAG"] = sys.argv[1] if len(sys.argv) > 1 else "v0.0.2"
+    globals()["TAG"] = sys.argv[1] if len(sys.argv) > 1 else "v0.0.5"
     TOKEN = get_token()
     print(f"发布 {TAG} · token 前缀: {TOKEN[:8]}")
     if not upload_all():
