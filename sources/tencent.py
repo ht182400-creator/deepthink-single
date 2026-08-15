@@ -88,24 +88,29 @@ class TencentSource(Source):
         rows = node.get("data", {}).get("data", [])
         if not rows:
             raise RuntimeError(f"腾讯分时无数据: {code} date={date or 'today'}")
+        # 腾讯 ifzq 分时：每条 "time price cum_vol cum_amount"
+        # cum_vol 单位为"股"，cum_amount 单位为"元"，均是从开盘开始的累计值。
+        # 后端直接差分得到每分钟的成交量/成交额，并计算出正确均价。
         out = []
-        cum_vol = 0
-        cum_amt = 0.0
+        prev_vol = 0.0
+        prev_amt = 0.0
         for ln in rows:
             p = ln.split()
             if len(p) < 4:
                 continue
-            t, price, vol, amt = p[0], float(p[1]), float(p[2]), float(p[3])
-            cum_vol += vol
-            cum_amt += amt
+            t, price, cum_vol, cum_amt = p[0], float(p[1]), float(p[2]), float(p[3])
+            minute_vol = max(0.0, cum_vol - prev_vol)
+            minute_amt = max(0.0, cum_amt - prev_amt)
+            prev_vol = cum_vol
+            prev_amt = cum_amt
             out.append({
                 "t": t,
                 "price": price,
-                # 腾讯 ifzq 分时：vol 单位"手"（1手=100股），amt 单位"元"
-                # 均价=元/股 = cum_amt / (cum_vol*100)；不能直接 cum_amt/cum_vol（会乘以100倍）
+                    # 腾讯 ifzq：cum_vol 单位为"手"（1手=100股），cum_amt 单位为"元"
+                # 均价 = 元/股 = cum_amt / (cum_vol * 100)
                 "avg": round(cum_amt / (cum_vol * 100), 3) if cum_vol else price,
-                "vol": vol,
-                "amount": amt,
+                "vol": minute_vol,      # 每分钟成交量（手）
+                "amount": minute_amt,   # 每分钟成交额（元）
             })
         # 截断收盘后的伪数据：腾讯 ifzq 在收盘后仍持续返回"最后一帧"（价格定格、vol/amt 微量累加）
         # 找到价格最后变动的位置，保留到 +1
