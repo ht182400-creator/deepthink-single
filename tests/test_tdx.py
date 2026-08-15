@@ -17,8 +17,8 @@ class TestTdx(unittest.TestCase):
     def test_read_tdx_day(self):
         from sources.tdx import read_tdx_day
         make_tdx_file(self.tmp, "sh600519", [
-            (20260810, 10.0, 11.0, 9.5, 10.5, 100),
-            (20260811, 10.5, 12.0, 10.0, 11.5, 200),
+            (20260810, 10.0, 11.0, 9.5, 10.5, 100, 123456.78),
+            (20260811, 10.5, 12.0, 10.0, 11.5, 200, 234567.89),
         ])
         rows = read_tdx_day("sh600519")
         self.assertEqual(len(rows), 2)
@@ -28,6 +28,7 @@ class TestTdx(unittest.TestCase):
         self.assertEqual(rows[0]["high"], 11.0)
         self.assertEqual(rows[0]["low"], 9.5)
         self.assertEqual(rows[0]["vol"], 100)
+        self.assertEqual(rows[0]["amount"], 123456.78)
 
     def test_missing_file_returns_empty(self):
         from sources.tdx import read_tdx_day
@@ -48,7 +49,7 @@ class TestTdx(unittest.TestCase):
         from sources.tdx import aggregate
         days = [
             {"date": f"2026-08-{d:02d}", "open": 10.0 + i, "close": 10.5 + i,
-             "high": 11.0 + i, "low": 9.5 + i, "vol": 100 + i}
+             "high": 11.0 + i, "low": 9.5 + i, "vol": 100 + i, "amount": 1000 + i * 10}
             for i, d in enumerate(range(1, 11))   # 10 天 → 2 根周线
         ]
         weeks = aggregate(days, 5)
@@ -60,6 +61,7 @@ class TestTdx(unittest.TestCase):
         self.assertEqual(w0["high"], 15.0)                 # 最高
         self.assertEqual(w0["low"], 9.5)                   # 最低
         self.assertEqual(w0["vol"], 100 + 101 + 102 + 103 + 104)
+        self.assertEqual(w0["amount"], 1000 + 1010 + 1020 + 1030 + 1040)
 
     def test_get_kline_periods_and_limit(self):
         from sources.tdx import TdxSource
