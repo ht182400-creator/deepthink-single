@@ -35,7 +35,22 @@ if %errorlevel% neq 0 (
 )
 
 echo [4/4] Starting server...
+:: 在独立窗口后台启动服务（保留日志/可关闭），主窗口等待端口就绪后再开浏览器
+start "" cmd /c "%PY% app.py"
+
+set /a "_wait=0"
+:wait
+curl -s -o nul http://localhost:5000/api/sysinfo >nul 2>nul
+if %errorlevel%==0 goto :opened
+set /a "_wait+=1"
+if %_wait% geq 30 (
+  echo Server did not start within 30s. Check the server window for errors.
+  goto :opened
+)
+timeout /t 1 /nobreak >nul
+goto :wait
+:opened
 start "" "http://localhost:5000"
-%PY% app.py
+echo Server is up - opened http://localhost:5000
 
 pause
