@@ -76,6 +76,8 @@ flowchart TB
 
 ## 3. 目录结构（重构目标）
 
+> ⚠️ **本节为「重构目标态」**：实际 v0.0.4 前端**仍是单文件 `app.js` + 纯函数模块 `indicators.js`**，尚未拆分为 `charts/*.js` / `components/` / `api.js` / `main.js`。真实落地差异见 **§13**。
+
 ```
 E:\AI_Studio\deepthinkSingle\
 ├── app.py                    # Flask 入口（thin，只注册路由）
@@ -95,7 +97,7 @@ E:\AI_Studio\deepthinkSingle\
 │   ├── base.py               # Source 抽象基类 + 降级编排器
 │   ├── tencent.py            # 腾讯自选股（分时/报价/K线）
 │   ├── eastmoney.py          # 东方财富（主力资金/5日主力 f178/K线/分时）
-│   ├── tdx.py                # 通达信本地 .day（历史日/周/月）
+│   ├── tdx.py                # 通达信本地 .day（日/周/月）+ .lc1（分钟，聚合 m1/m5/m15/m30/m60）
 │   ├── npx.py                # npx westock-data-skillhub（兜底）
 │   └── company.py            # 公司综合（公告/财务/股东/两融/龙虎榜/预测）
 │
@@ -191,7 +193,7 @@ def with_fallback(sources, method, *args, **kwargs):
 | 报价/分时 | Tencent → Eastmoney |
 | 主力资金 | Eastmoney(push2) → Eastmoney(push2delay) |
 | 日/周/月 K | TDX 本地 → NPX → Eastmoney |
-| 分钟 K | NPX（+缓存）→ Eastmoney |
+| 分钟 K | TDX 本地(.lc1 聚合) → NPX（当日兜底）→ Eastmoney |
 | 公告 | 东方财富 np-anotice-stock.eastmoney.com |
 | 财务摘要 | 东方财经常 dataline emweb f10 RPT_F10_FINANCE_MAINFINADATA |
 | 股东户数 | 东方财富 emweb f10 ShareholderResearch |
@@ -243,7 +245,7 @@ CREATE TABLE analysis_log (id INTEGER PRIMARY KEY, ts INTEGER, code TEXT, data T
 | 决策 | 选择 | 理由 |
 |---|---|---|
 | 历史 K 线 | 通达信 .day 本地优先 | 0.01s、含全历史、无网络依赖 |
-| 分钟 K | npx + JSON 缓存 | 无稳定免费 HTTP 接口；缓存兜性能 |
+| 分钟 K | 通达信本地 .lc1（1 分钟聚合 m5/m15/m30/m60，全量历史）优先 | 0.x s、跨交易日完整序列、无网络依赖；无本地数据回退 npx 当日 |
 | 主力资金 | 东财多节点 | 腾讯公开接口无此数据 |
 | 缓存 | SQLite + JSON 双轨 | SQLite 结构化查询、JSON 大数组性能 |
 | 前端 | 无构建 + 模块化 JS | 免构建链，保持简单可维护 |
@@ -437,3 +439,34 @@ deepthinkSingle/
 ├── static/js/panels/         # 面板注册表（前端）
 └── tests/                    # 熔断/限流/降级/解析单测
 ```
+
+---
+
+## 13. 当前实现状态（v0.0.5，与重构目标的偏差）
+
+> 本节校正 §3 / §5 / §12 描述的「模块化拆分重构目标」与实际落地之间的差异，避免文档误导。
+>
+> 版本标注：`v0.0.4` = 已发布（GitHub tag）；`v0.0.5` = 本地已完成、待发布（`docs/backlog.md` 版本表 `v0.0.5` 行）。
+
+### 13.1 前端架构（实际）
+
+- **未做模块化拆分**：前端仍是单文件 `static/js/app.js`（约 1677 行 IIFE）+ 新增的纯函数模块 `static/js/indicators.js`（87 行，无 DOM 依赖）。§3 / §5 描述的 `static/js/charts/*.js`、`components/`、`api.js`、`main.js` **尚未落地**，属后续重构目标。
+- **指标算法引擎（部分落地）**：`indicators.js` 已实现 `ema / macd / kdj / boll / rsi` 纯函数，窗口挂 `window.DTIndicators`，前端渲染与 `tests/js/indicators.test.js`（Node，5 用例）共用同一份口径——这是 §10.1「指标引擎 `indicators/`」愿景的部分实现（以单一前端模块形式，而非后端 Python 引擎）。
+- **副图渲染骨架（已落地，M1 + US-069）**：分时副图（`charts.sub[]`，13 类）已收敛到数据驱动 `buildSubOption({times,yFmt,tip,series,grid,xAxis,legend,splitNumber})` 骨架 + `_zeroLine / _deltaByKey / _deltaByFn / _toWan` 助手（`app.js:682` 起）。**K线技术指标副图（`charts.klineSub[]`，MACD/KDJ/BOLL/RSI）也已收敛到 `buildKlineSubOption({dates,yAxis,series})` 通用骨架**（US-069，v0.0.5 本地完成），四个渲染函数样板消除，视觉参数零回归。
+
+### 13.2 后端 / 稳定性（已落地，与 §11 一致）
+
+| 项 | 落地 | 版本 |
+|---|---|---|
+| 缓存分层 | 分钟 K 走 JSON 文件缓存；低频综合数据走 `static_cache = TtlCache(TTL_STATIC=600)`（stats/财务/股东/两融/龙虎榜/预测/净利/5日资金） | v0.0.4（P1） |
+| 指数退避重试 | `core/fallback._call_one` 实现真实重试（`RETRY_MAX=3` / `RETRY_BACKOFF=(1,2,4)`） | v0.0.4（C2） |
+| WAL 模式 | `services/db.py` 启用 `PRAGMA journal_mode=WAL` + `busy_timeout` | v0.0.4（C3） |
+| 配置外置 | `TDX_ROOT = os.environ.get(...)`；`MAX_CODES=50` 限 `/api/many` | v0.0.4（C1/C5） |
+| 复盘记录 | `analysis_log` 表 + `/api/analysis`（GET/POST）**已落地**（US-017，v0.0.5 本地完成），前端「复盘」按钮 + 模态框（note HTML 转义防 XSS） | v0.0.5（US-017） |
+| 分钟 K 缓存 | 分钟 K（m1/m5/m15/m30/m60）不再应用最小条数阈值，避免 npx 返回的当天少量数据被误判为缓存污染而强制重拉；日线/周线/月线阈值保留 | v0.0.5（#15） |
+
+### 13.3 测试（实际）
+
+- **后端**：Python `unittest` 132 例（core / sources / services / api），零外部依赖可离线跑。
+- **前端**：Node `node --test tests/js/*.test.js` **15 例**（`indicators.test.js` 指标算法 5 + `dom-smoke.test.js` 源码级 D2/D3/M1 回归守护 3 + jsdom 真·页面功能测试 7）；`node --check static/js/app.js | indicators.js` 语法快速把关。
+- **已建设**：jsdom 前端冒烟（守护 D2/D3 回归 + 复盘/搜索/自选删除/空数据占位 + **K线 60分 4 根仍渲染** 交互）、后端 `core/fallback` 重试 C2 确定性测试（评审 §5-2/3，v0.0.5 本地完成）。
