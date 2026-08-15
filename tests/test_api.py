@@ -135,6 +135,22 @@ class TestApi(unittest.TestCase):
         r = self.client.get("/")
         self.assertEqual(r.headers.get("Cache-Control"), "no-cache, no-store, must-revalidate")
 
+    def test_analysis_crud(self):
+        """US-017：复盘记录 POST 新增 → GET 列表可回读（data.note 解析正确）。"""
+        r = self.client.post("/api/analysis",
+                             json={"code": "sh600519", "note": "放量突破，主力连续流入"})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.get_json()["ok"])
+        r = self.client.get("/api/analysis?code=sh600519")
+        self.assertEqual(r.status_code, 200)
+        rows = r.get_json()
+        self.assertTrue(any(x["code"] == "sh600519" and x["data"].get("note") == "放量突破，主力连续流入"
+                            for x in rows))
+
+    def test_analysis_missing_code_400(self):
+        r = self.client.post("/api/analysis", json={"note": "无 code"})
+        self.assertEqual(r.status_code, 400)
+
 
 class TestApiRealSmoke(unittest.TestCase):
     """真实链路冒烟：不 mock 服务层，验证服务真正可拉起数据。
